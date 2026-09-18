@@ -1,0 +1,4 @@
+# Python 执行和测试生成的缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/

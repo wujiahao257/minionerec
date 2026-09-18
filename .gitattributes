@@ -1,0 +1,2 @@
+# Windows checkout 也保留 Bash 启动脚本的 LF 换行。
+scripts/*.sh text eol=lf

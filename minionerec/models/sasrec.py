@@ -7,11 +7,11 @@ import torch.nn.functional as F
 import os
 import logging
 import time as Time
-from utility import pad_history,calculate_hit,extract_axis_1
+from minionerec.models.utils import pad_history,calculate_hit,extract_axis_1
 from collections import Counter
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from SASRecModules_ori import *
+from minionerec.models.sasrec_modules import *
 import random
 import json
 import copy

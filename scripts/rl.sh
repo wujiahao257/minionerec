@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# 固定从项目根目录运行，数据和配置路径以根目录为基准。
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd -- "$PROJECT_ROOT" || exit 1
+
 
 export NCCL_IB_DISABLE=1        # 完全禁用 IB/RoCE
 
@@ -10,7 +14,7 @@ for category in "Industrial_and_Scientific"; do
     HF_ENDPOINT=https://hf-mirror.com accelerate launch \
                                     --config_file ./config/zero2_opt.yaml \
                                     --num_processes 8 --main_process_port 29503 \
-                                    rl.py \
+                                    -m minionerec.training.rl \
                         --model_path path_to_model \
                         --train_batch_size 64 \
                         --eval_batch_size 128 \
@@ -37,5 +41,5 @@ for category in "Industrial_and_Scientific"; do
                         --output_dir output_dir \
                         --wandb_run_name wandb_name \
                         --sid_index_path ./data/Amazon/index/Industrial_and_Scientific.index.json \
-                        --item_meta_path ./data/Amazon/index/Industrial_and_Scientific.item.json
+                        --item_meta_path ./data/Amazon/index/Industrial_and_Scientific.item.json "$@"
 done

@@ -5,8 +5,7 @@ import pandas as pd
 import json
 import sys
 import random
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from data import (
+from minionerec.datasets.recommendation import (
     SFTData, D3Dataset, EvalD3Dataset, EvalSidDataset,
     SidDataset, SidSFTDataset, SidItemFeatDataset, RLTitle2SidDataset,
     RLSid2TitleDataset, RLSidhis2TitleDataset, FusionSeqRecDataset,

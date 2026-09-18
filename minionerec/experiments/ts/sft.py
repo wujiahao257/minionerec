@@ -1,29 +1,25 @@
 import os
 import sys
-from typing import List
 import numpy as np 
 import fire
 import torch
 import transformers
+
 from datasets import load_dataset, concatenate_datasets
+from datasets import Dataset as HFDataset
 from transformers import EarlyStoppingCallback, AutoConfig
-from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
 from dataclasses import dataclass
 import torch.nn as nn
 import math
 import warnings
 from functools import partial
-import numpy as np 
-import fire
-import transformers
 from torch.optim.lr_scheduler import LambdaLR
 import json
-import torch.nn as nn
 import bitsandbytes as bnb
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from data import D3Dataset, SFTData, SidSFTDataset, SidItemFeatDataset, FusionSeqRecDataset, PreferenceSFTDataset, UserPreference2sidSFTDataset, TitleHistory2SidSFTDataset
+from minionerec.experiments.ts.datasets import SidSFTDataset, SidItemFeatDataset, FusionSeqRecDataset, SidTokenFeatDataset
 import random
-from datasets import Dataset as HFDataset
 from torch.utils.data import ConcatDataset
 
 
@@ -88,7 +84,6 @@ class TokenExtender:
         
         return self.new_tokens
 
-
 def set_seed(seed):
     """固定 Python、NumPy 或 PyTorch 随机状态，减少重复实验中的随机差异。
 
@@ -150,67 +145,36 @@ def get_cosine_schedule_with_warmup(
     )
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
-
-
-class VAFT_Trainer(transformers.Trainer):
-    """有 final_value 时按模拟价值加权序列 CE，否则使用父类训练 loss。
+# -------------------------------- SA-Init Function --------------------------------
+def initialize_sid_token_with_text(model, tokenizer, new_token_id, keywords):
+    """平均关键词的输入词向量并归一到平均行范数，初始化指定 SID Embedding 行。
 
     Args:
-        本类未定义独立构造参数；构造行为继承父类。
+        model (transformers.PreTrainedModel): 当前因果语言模型，输入 token 和 mask，输出词表 logits；loss 路径需要梯度。
+        tokenizer (transformers.PreTrainedTokenizerBase | None): 分词器，负责文本与 token ID 的转换；部分元数据类允许 None 以返回原始任务记录。
+        new_token_id (int): 待初始化 SID token 在扩充 tokenizer 中的词表编号。
+        keywords (str): 描述 SID token 含义的关键词文本，用其词向量均值初始化新行。
+
+    Returns:
+        None: 原地修改模型输入 Embedding 权重，不执行完整 Transformer forward。
     """
-    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        # Get final_value
-        """按有效答案 token 平均交叉熵，并乘 log1p(final_value)；缺失权重时回退父类。
+    text_inputs = tokenizer(keywords, return_tensors="pt", add_special_tokens=False)
+    input_ids = text_inputs["input_ids"].to(model.device)
 
-        Args:
-            self (VAFT_Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
-            model (transformers.PreTrainedModel): 当前因果语言模型，输入 token 和 mask，输出词表 logits；loss 路径需要梯度。
-            inputs (dict[str, torch.Tensor]): SFT batch：input_ids、attention_mask、labels 为 [B,L]，可选 final_value 为 [B]；权重字段会被 pop。
-            return_outputs (bool): 是否连同 loss 返回模型输出；ReReTrainer 不支持 True，VAFT 支持该模式。
-            num_items_in_batch (int | torch.Tensor | None): 父类 Trainer 传入的批内计数兼容参数；当前自定义 loss 未用它归一化。
+    with torch.no_grad():
+        word_embeddings = model.get_input_embeddings()(input_ids) # (bs, seq, feat_dim)
+    text_semantic_vector = torch.mean(word_embeddings, dim=1).squeeze() # (feat_dim)
 
-        Returns:
-            torch.Tensor | tuple[torch.Tensor, object]: loss 标量；return_outputs=True 时附带模型输出。
-        """
-        final_values = inputs.pop("final_value", None)
-        
-        if final_values is None:
-             # Fallback to normal loss if final_value is missing
-             return super().compute_loss(model, inputs, return_outputs)
+    # normalization
+    all_embeddings = model.get_input_embeddings().weight.data # (vocab_size, feat_dim)
+    avg_norm = all_embeddings.norm(dim=1).mean()
+    current_norm = text_semantic_vector.norm()
+    text_semantic_vector = text_semantic_vector * (avg_norm / (current_norm + 1e-6))
 
-        final_values = final_values.to(self.args.device)
+    model.get_input_embeddings().weight.data[new_token_id] = text_semantic_vector
 
-        outputs = model(**inputs)
-        logits = outputs.logits
-        labels = inputs["labels"]
-
-        # Calculate loss per token
-        loss_fct = nn.CrossEntropyLoss(reduction='none')
-        # Shift so that tokens < n predict n
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
-        
-        loss_per_token = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-
-        # Reshape to (batch, seq_len)
-        loss_per_seq = loss_per_token.view(shift_labels.shape[0], -1)
-
-        # Average loss per sequence (ignoring padding)
-        valid_tokens_mask = (shift_labels != -100)
-        # Avoid division by zero
-        sum_loss = (loss_per_seq * valid_tokens_mask).sum(dim=1)
-        num_valid = valid_tokens_mask.sum(dim=1)
-        seq_loss = sum_loss / (num_valid + 1e-9)
-
-        # Value Weighting
-        # Ensure final_values are positive and broadcastable
-        value_weights = torch.log1p(final_values.to(seq_loss.dtype))
-        
-        # Apply weighted loss
-        weighted_loss = (seq_loss * value_weights).mean()
-
-        return (weighted_loss, outputs) if return_outputs else weighted_loss
-
+    print(f"Token {new_token_id} initialized with text semantics.")
+# -------------------------------- SA-Init Function --------------------------------
 
 def train(
     # model/data params
@@ -238,6 +202,7 @@ def train(
     train_from_scratch: bool = False,
     sid_index_path: str = "",
     item_meta_path: str = "",
+    description_path: str =""
 ):
     """加载因果语言模型、扩充 SID 词表并混合推荐/对齐任务，执行 SFT 后保存模型和 tokenizer。
 
@@ -262,14 +227,18 @@ def train(
         train_from_scratch (bool): 为 True 时按基础配置随机初始化模型；否则加载预训练权重。
         sid_index_path (str): 商品 ID 到各层 SID token 列表的 JSON 文件路径。
         item_meta_path (str): 商品元数据 JSON 路径，键为商品 ID 字符串，值含 title、description 等字段。
+        description_path (str): SID token 语义 JSON 路径；记录包含 token、description，初始化还使用 keywords。
 
     Returns:
         None: 在 output_dir 及 final_checkpoint 中保存训练产物。
     """
     set_seed(seed)
     os.environ['WANDB_PROJECT'] = wandb_project
-    category_dict = {"Industrial_and_Scientific": "industrial and scientific items", "Office_Products": "office products", "Toys_and_Games": "toys and games", "Sports": "sports and outdoors", "Books": "books"}
+
+    category_dict = {"Industrial_and_Scientific": "industrial and scientific", "Office_Products": "office products", "Toys_and_Games": "toys and games", "Books": "books"}
+
     print(category)
+    category_tmp = category
     category = category_dict[category]
     assert (
         base_model
@@ -295,19 +264,10 @@ def train(
         
     tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
     original_vocab_size = len(tokenizer)
-    
-    # Add Special Tokens
-    new_special_tokens = ['[USER_HIGH_RATING]', '[USER_MID_RATING]', '[USER_LOW_RATING]', '[USER_UNKNOWN]',
-                          '[CTX_BROWSE]', '[CTX_SEARCH]', '[CTX_HOMEPAGE]',
-                          '[O_TOKEN]', '[I_TOKEN]']
-    tokenizer.add_special_tokens({'additional_special_tokens': new_special_tokens})
-    
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
-    tokenizer.padding_side = "left"
-    
-    # Resize embeddings for special tokens
-    model.resize_token_embeddings(len(tokenizer))
+
+    tokenizer.padding_side = "right"
     
     if sid_index_path and os.path.exists(sid_index_path):
         print(f"Loading index from {sid_index_path}")
@@ -320,6 +280,17 @@ def train(
             print(f"Adding {len(new_tokens)} new tokens to tokenizer")
             tokenizer.add_tokens(new_tokens)
             model.resize_token_embeddings(len(tokenizer))
+
+    # -------------------------------- SA-Init --------------------------------
+    with open(description_path, 'r') as f:
+        prefix_description_text = json.load(f)
+    for item in prefix_description_text:
+        new_token = item['token']
+        keywords = item['keywords']
+        keywords_str = " ".join(keywords)
+        new_token_id = tokenizer.convert_tokens_to_ids(new_token)
+        initialize_sid_token_with_text(model, tokenizer, new_token_id, keywords_str)
+    # -------------------------------- SA-Init --------------------------------
 
     # Freeze LLM parameters if required
     if freeze_LLM:
@@ -360,33 +331,22 @@ def train(
             f"{total_params:,} ({100*trainable_params/total_params:.2f}%)")
         
     train_datasets = []
-    # train_data1 = SFTData(train_file=train_file, tokenizer=tokenizer, max_len=cutoff_len,  sample=sample, seed=seed, category=category)
+
     train_data1 = SidSFTDataset(train_file=train_file, tokenizer=tokenizer, max_len=cutoff_len,  sample=sample, seed=seed, category=category)
     train_datasets.append(train_data1)
     train_data2 = SidItemFeatDataset(item_file=item_meta_path, index_file=sid_index_path, tokenizer=tokenizer, max_len=cutoff_len,  sample=sample, seed=seed, category=category)
     train_datasets.append(train_data2)
     train_data3 = FusionSeqRecDataset(train_file=train_file, item_file=item_meta_path, index_file=sid_index_path, tokenizer=tokenizer, max_len=cutoff_len, sample=sample, seed=seed, category=category)
     train_datasets.append(train_data3)
-    train_data4 = SFTData(train_file=train_file, tokenizer=tokenizer, max_len=cutoff_len,  sample=sample, seed=seed, category=category)
+
+    # -------------------------------- TS-Align --------------------------------
+    train_data4 = SidTokenFeatDataset(description_file=description_path, tokenizer=tokenizer, max_len=cutoff_len, sample=sample, seed=seed, category=category)
     train_datasets.append(train_data4)
-    train_data5 = TitleHistory2SidSFTDataset(train_file=train_file, item_file=item_meta_path, index_file=sid_index_path, tokenizer=tokenizer, max_len=cutoff_len, sample=sample, seed=seed, category=category)
-    train_datasets.append(train_data5)
-    
-    # Add UserPreference2sidSFTDataset for "Thinking" simulation
-    pref_file = os.path.join(os.path.dirname(train_file), f"{category}.preference.json")
-    if not os.path.exists(pref_file):
-         pref_file = f"data/{category}/{category}.preference.json"
-    
-    if os.path.exists(pref_file):
-        print(f"Loading preference data from {pref_file}")
-        train_data_pref = UserPreference2sidSFTDataset(user_preference_file=pref_file, index_file=sid_index_path, tokenizer=tokenizer, max_len=cutoff_len, sample=sample, seed=seed, category=category)
-        train_datasets.append(train_data_pref)
-    else:
-        print(f"Warning: Preference file {pref_file} not found. Skipping Thinking simulation data.")
-        
+    # -------------------------------- TS-Align --------------------------------
+
     train_data = ConcatDataset(train_datasets)
     val_data = SidSFTDataset(train_file=eval_file, tokenizer=tokenizer, max_len=cutoff_len,  sample=sample, seed=seed, category=category)
-    # val_data = SFTData(train_file=eval_file, tokenizer=tokenizer, max_len=cutoff_len,  sample=20000, seed=seed, category=category)
+    
     print("LOAD DATA FINISHED")    
     
     if resume_from_checkpoint:
@@ -399,21 +359,15 @@ def train(
         model.model_parallel = True
     
     sample_frac = 1
-    
-    # Safe creation of HFDataset handling missing keys (like final_value)
-    # Assuming train_data[0] has the superset of keys (SidSFTDataset has final_value)
-    keys = train_data[0].keys()
-    hf_train_dataset = HFDataset.from_dict({k: [v.get(k, 1.0 if k == 'final_value' else None) for v in train_data] for k in keys})
+    hf_train_dataset = HFDataset.from_dict({k: [v[k] for v in train_data] for k in train_data[0].keys()})
     hf_train_dataset = hf_train_dataset.shuffle(seed=42).select(range(int(sample_frac * len(hf_train_dataset))))
-    
-    val_keys = val_data[0].keys()
-    hf_val_dataset = HFDataset.from_dict({k: [v.get(k, 1.0 if k == 'final_value' else None) for v in val_data] for k in val_keys}).shuffle(seed=seed)
+    hf_val_dataset = HFDataset.from_dict({k: [v[k] for v in val_data] for k in val_data[0].keys()}).shuffle(seed=seed)
     hf_val_dataset = hf_val_dataset.shuffle(seed=42)
 
     print(hf_train_dataset)
     print(hf_val_dataset)
     eval_step = 0.05
-    trainer = VAFT_Trainer(
+    trainer = transformers.Trainer(
         # deepspeed=deepspeed,
         model=model,
         train_dataset=hf_train_dataset,
@@ -435,7 +389,7 @@ def train(
             save_strategy="steps",
             save_steps=eval_step,
             output_dir=output_dir,
-            save_total_limit=1,
+            save_total_limit=5,
             load_best_model_at_end=True,
             ddp_find_unused_parameters=False if ddp else None,
             group_by_length=group_by_length,

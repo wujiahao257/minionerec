@@ -60,7 +60,7 @@ from transformers import (
         Trainer
     )
 
-from LogitProcessor import ConstrainedLogitsProcessor
+from minionerec.evaluation.logits_processor import ConstrainedLogitsProcessor
 from transformers.generation import LogitsProcessor
 import math
 

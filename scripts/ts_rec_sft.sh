@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# 固定从项目根目录运行，数据和配置路径以根目录为基准。
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd -- "$PROJECT_ROOT" || exit 1
+
 export NCCL_IB_DISABLE=1        # 完全禁用 IB/RoCE
 
 DATASET="Industrial_and_Scientific"
@@ -17,7 +21,7 @@ for category in $DATASET; do
     echo ${train_file} ${eval_file} ${info_file} ${test_file}
     
     torchrun --nproc_per_node 8 \
-            sft.py \
+            -m minionerec.experiments.ts.sft \
             --base_model ${MODEL} \
             --batch_size 1024 \
             --micro_batch_size 16 \
@@ -32,6 +36,6 @@ for category in $DATASET; do
             --sid_index_path ./data/Amazon/index/${category}.index.json \
             --item_meta_path ./data/Amazon/index/${category}.item.json \
             --freeze_LLM False \
-            --description_path ./data/Amazon/${category}.description_keywords_rqvae.json \
-            --learning_rate 3e-4
+            --description_path ./ts_rec_data/${category}.description_keywords.json \
+            --learning_rate 3e-4 "$@"
 done

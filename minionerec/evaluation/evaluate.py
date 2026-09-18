@@ -5,8 +5,8 @@ import torch
 import json
 import os
 from transformers import GenerationConfig,  AutoTokenizer, BitsAndBytesConfig, AutoModelForCausalLM, LogitsProcessorList, TemperatureLogitsWarper
-from data import  EvalD3Dataset, EvalSidDataset
-from LogitProcessor import ConstrainedLogitsProcessor
+from minionerec.datasets.recommendation import  EvalD3Dataset, EvalSidDataset
+from minionerec.evaluation.logits_processor import ConstrainedLogitsProcessor
 from accelerate import Accelerator
 import random
 import bitsandbytes as bnb

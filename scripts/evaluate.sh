@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+# 固定从项目根目录运行，数据和配置路径以根目录为基准。
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd -- "$PROJECT_ROOT" || exit 1
+
 # Industrial_and_Scientific
 # Office_Products
 for category in "Industrial_and_Scientific"
@@ -26,7 +31,7 @@ do
     mkdir -p "$temp_dir"
     
     echo "Splitting test data..."
-    python ./split.py --input_path "$test_file" --output_path "$temp_dir" --cuda_list "0,1,2,3,4,5,6,7"
+    python -m minionerec.evaluation.split --input_path "$test_file" --output_path "$temp_dir" --cuda_list "0,1,2,3,4,5,6,7"
     
     if [[ ! -f "$temp_dir/0.csv" ]]; then
         echo "Error: Data splitting failed for category $category"
@@ -39,7 +44,7 @@ do
     do
         if [[ -f "$temp_dir/${i}.csv" ]]; then
             echo "Starting evaluation on GPU $i for category ${category}"
-            CUDA_VISIBLE_DEVICES=$i python -u ./evaluate.py \
+            CUDA_VISIBLE_DEVICES=$i python -u -m minionerec.evaluation.evaluate \
                 --base_model "$exp_name" \
                 --info_file "$info_file" \
                 --category ${category} \
@@ -69,7 +74,7 @@ do
     actual_cuda_list=$(ls "$temp_dir"/*.json 2>/dev/null | sed 's/.*\///g' | sed 's/\.json//g' | tr '\n' ',' | sed 's/,$//')
     echo "Merging results from GPUs: $actual_cuda_list"
     
-    python ./merge.py \
+    python -m minionerec.evaluation.merge \
         --input_path "$temp_dir" \
         --output_path "$output_dir/final_result_${category}.json" \
         --cuda_list "$actual_cuda_list"
@@ -80,7 +85,7 @@ do
     fi
     
     echo "Calculating metrics..."
-    python ./calc.py \
+    python -m minionerec.evaluation.metrics \
         --path "$output_dir/final_result_${category}.json" \
         --item_path "$info_file"
     

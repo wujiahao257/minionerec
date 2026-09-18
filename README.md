@@ -1,3 +1,5 @@
+> **目录已整理**：主代码在 `minionerec/`，推荐启动脚本在 `scripts/`。请从项目根目录用 `python -m minionerec.…` 运行；`rq/` 保持独立运行方式。旧路径对照、运行说明和遗留代码检查见 [迁移说明](docs/09_目录迁移与遗留代码检查.md)，源码阅读从 [中文文档](docs/README.md) 开始。
+
 <div align="center">
 
 
@@ -21,11 +23,11 @@ Scaling Generative Recommendation**
 
 - 2026-05-13 — We have introduced the new TS-Rec codebase, following the method proposed in [Fine-grained Semantics Integration for Large Language Model-based Recommendation](https://arxiv.org/pdf/2602.22632). We sincerely thank the contributors for their valuable efforts and support in making this update available.
 
-- 2026-01-04 — Regarding the potential discrepancies between the reproduced results based on the Instruct model and our reported metrics, please check whether the CC metric in the evaluation log is non-zero (refer to calc.py). If it is non-zero, it indicates that the model is still generating a large number of invalid items, and constrained decoding has not been successful. We suspect this issue may be related to the versions of dependencies such as the transformer library, and we are still investigating the cause to provide a universal solution. In the meantime, you may switch the Instruct model to a base model, such as Qwen2.5-base, to avoid this problem.
+- 2026-01-04 — Regarding the potential discrepancies between the reproduced results based on the Instruct model and our reported metrics, please check whether the CC metric in the evaluation log is non-zero (refer to minionerec/evaluation/metrics.py). If it is non-zero, it indicates that the model is still generating a large number of invalid items, and constrained decoding has not been successful. We suspect this issue may be related to the versions of dependencies such as the transformer library, and we are still investigating the cause to provide a universal solution. In the meantime, you may switch the Instruct model to a base model, such as Qwen2.5-base, to avoid this problem.
 
 - 2025-12-04 — We update new scripts to support processing the Amazon23 dataset.
 
-- 2025-12-01 — We fix a bug in data.py that could cause the SID–item alignment task to see the answers in advance. This was because we had previously attempted to use partial trajectories to guide the full SID–item generation and does not affect the model performance.
+- 2025-12-01 — We fix a bug in minionerec/datasets/recommendation.py that could cause the SID–item alignment task to see the answers in advance. This was because we had previously attempted to use partial trajectories to guide the full SID–item generation and does not affect the model performance.
 
 - 2025-11-20 — The SID construction method in **RQ-Kmeans+** has been updated (first proposed in **GPR** and this is the first open-source reproduction).
 
@@ -68,25 +70,25 @@ Scaling Generative Recommendation**
 
 | File / Directory          | Description                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `sft.sh`                  | Shell script to start the Supervised Fine-Tuning (SFT) stage                                           |
-| `sft.py`                  | Python implementation of the SFT training loop                                                            |
-| `sft_gpr.py`              | GPR-inspired SFT with Value-Aware Fine-Tuning (VAFT): implements weighted loss based on simulated item value                            |
-| `rl.sh`                   | Shell script to start the Reinforcement Learning (RL) stage                             |
-| `rl.py`                   | Python implementation of the RL training loop                                              |
-| `rl_gpr.py`               | GPR-inspired RL with Hierarchy Enhanced Policy Optimization (HEPO)                                                 |
-| `minionerec_trainer.py`   | MiniOneRec trainer — GRPO-based trainer specialized for generative recommendation                              |
-| `configs/`                | YAML configuration files                                            |
-| `evaluate.sh`     | One-click offline Top-K evaluation script                                                        |
-| `evaluate.py`     | Evaluation utilities for computing HR@K and NDCG@K.                                                           |
-| `LogitProcessor.py`                | Logit processor for constrained decoding (Python implementation)                                         |
-| `data.py`                | Data pipeline for SFT and RL training                          |
-| `convert_dataset.py`                | Converts an RQ-trained dataset to the SFT-then-RL format                                            |
-| `convert_dataset_gpr.py`           | GPR-inspired dataset converter: injects simulated heterogeneous tokens (U/E/I/O) to emulate unified input representation                                         |
-| `data/amazon18_data_process.sh`                |    Shell script to filter and preprocess Amazon18 data into an RQ-ready format                                      |
-| `data/amazon18_data_process.py`                |   Python implementation of the Amazon18 data preprocessing pipeline                                        |
-| `data/amazon18_data_process_gpr.py`            |   GPR-inspired Amazon18 preprocessing: extracts heterogeneous features for unified input representation                         |
-| `data/amazon23_data_process.sh`                |    Shell script to filter and preprocess Amazon23 data into an RQ-ready format                                      |
-| `data/amazon23_data_process.py`                |   Python implementation of the Amazon23 data preprocessing pipeline                                        |
+| `scripts/sft.sh`                  | Shell script to start the Supervised Fine-Tuning (SFT) stage                                           |
+| `minionerec/training/sft.py`                  | Python implementation of the SFT training loop                                                            |
+| `minionerec/experiments/gpr/sft.py`              | GPR-inspired SFT with Value-Aware Fine-Tuning (VAFT): implements weighted loss based on simulated item value                            |
+| `scripts/rl.sh`                   | Shell script to start the Reinforcement Learning (RL) stage                             |
+| `minionerec/training/rl.py`                   | Python implementation of the RL training loop                                              |
+| `minionerec/experiments/gpr/rl.py`               | GPR-inspired RL with Hierarchy Enhanced Policy Optimization (HEPO)                                                 |
+| `minionerec/training/trainer.py`   | MiniOneRec trainer — GRPO-based trainer specialized for generative recommendation                              |
+| `config/`                | YAML configuration files                                            |
+| `scripts/evaluate.sh`     | One-click offline Top-K evaluation script                                                        |
+| `minionerec/evaluation/evaluate.py`     | Evaluation utilities for computing HR@K and NDCG@K.                                                           |
+| `minionerec/evaluation/logits_processor.py`                | Logit processor for constrained decoding (Python implementation)                                         |
+| `minionerec/datasets/recommendation.py`                | Data pipeline for SFT and RL training                          |
+| `minionerec/preprocessing/convert_dataset.py`                | Converts an RQ-trained dataset to the SFT-then-RL format                                            |
+| `minionerec/experiments/gpr/convert_dataset.py`           | GPR-inspired dataset converter: injects simulated heterogeneous tokens (U/E/I/O) to emulate unified input representation                                         |
+| `scripts/amazon18_data_process.sh`                |    Shell script to filter and preprocess Amazon18 data into an RQ-ready format                                      |
+| `minionerec/preprocessing/amazon18.py`                |   Python implementation of the Amazon18 data preprocessing pipeline                                        |
+| `minionerec/experiments/gpr/amazon18.py`            |   GPR-inspired Amazon18 preprocessing: extracts heterogeneous features for unified input representation                         |
+| `scripts/amazon23_data_process.sh`                |    Shell script to filter and preprocess Amazon23 data into an RQ-ready format                                      |
+| `minionerec/preprocessing/amazon23.py`                |   Python implementation of the Amazon23 data preprocessing pipeline                                        |
 | `rq/text2emb/amazon_text2emb.sh`                |   Shell script to generate item embeddings (title + description) via emb_model for the Amazon dataset                                   |
 | `rq/text2emb/amazon_text2emb.py`                |   Python implementation of the above embedding generation                                         |
 | `rq/text2emb/amazon_text2emb_gpr.py`           |   GPR-inspired text-to-embedding                                 |
@@ -125,19 +127,19 @@ pip install -r requirements.txt
 ### 3. SFT
 
 ```bash
-bash sft.sh
+bash scripts/sft.sh
 ```
 
 ### 4. Recommendation-Oriented RL
 
 ```bash
-bash rl.sh
+bash scripts/rl.sh
 ```
 
 ### 5. Run the evaluation bash
 
 ```bash
-bash evaluate.sh
+bash scripts/evaluate.sh
 ```
 
 ---
@@ -171,11 +173,11 @@ pip install -r requirements.txt
   [Amazon Reviews 2023](https://amazon-reviews-2023.github.io/), 
   [Amazon Reviews 2018](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2/), 
   [Amazon Reviews 2014](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon/links.html).
-  Note: The Industrial and Office datasets are included in Amazon 2018; the Amazon 2014 and 2023 versions require slight modifications to our data/amazon18_data_process.py.
+  Note: The Industrial and Office datasets are included in Amazon 2018; the Amazon 2014 and 2023 versions require slight modifications to our minionerec/preprocessing/amazon18.py.
 - **2.2 Filter and preprocess**
 ```
-bash data/amazon18_data_process.sh \
-     --dataset  your_dataset_type \ # e.g. Industrial
+python -m minionerec.preprocessing.amazon18 \
+     --dataset  your_dataset_type \
      --user_k 5 \
      --item_k 5 \
      --st_year 2017 \
@@ -186,8 +188,8 @@ bash data/amazon18_data_process.sh \
 ```
 - **2.3 Encode item text to embeddings**
 ```
-bash rq/amazon_text2emb.sh \
-     --dataset your_dataset_type \ # e.g., Industrial 
+accelerate launch --num_processes 8 rq/text2emb/amazon_text2emb.py \
+     --dataset your_dataset_type \
      --root your_processed_dataset_path \
      --plm_name qwen \
      --plm_checkpoint your_emb_model_path
@@ -199,7 +201,7 @@ Choose either 3.1.1, 3.1.2, 3.1.3 or 3.1.4.
 
 - **3.1.1 Train RQ-VAE on the embeddings**
 ```
-bash rq/rqvae.sh \
+python rq/rqvae.py \
       --data_path xxx/data/Industrial_and_Scientific/Industrial_and_Scientific.emb-qwen-td.npy \
       --ckpt_dir ./output/Industrial_and_Scientific \
       --lr 1e-3 \
@@ -211,7 +213,7 @@ bash rq/rqvae.sh \
 
 ```
 conda install faiss-gpu
-python rqkmeans_faiss.py --dataset Industrial_and_Scientific # The RQ-Kmeans method based on semantic embeddings has a relatively high collision rate.
+python rq/rqkmeans_faiss.py --dataset Industrial_and_Scientific # The RQ-Kmeans method based on semantic embeddings has a relatively high collision rate.
 ```
 
 - **3.1.3 Train constrained RQ-Kmeans on the embeddings**
@@ -219,27 +221,27 @@ For conflicting items, we add an extra layer to perform deduplication; meanwhile
 ```
 pip install k_means_constrained
 pip install polars
-bash rqkmeans_constrained.sh
+(cd rq && bash rqkmeans_constrained.sh)
 ```
 
 - **3.1.4 Train RQ-Kmeans+ on the embeddings**
 ```
 pip install k_means_constrained
 pip install polars
-bash rqkmeans_constrained.sh
-bash rqkmeans_plus.sh
+(cd rq && bash rqkmeans_constrained.sh)
+(cd rq && bash rqkmeans_plus.sh)
 ```
 
 - **3.2 Generate indices(only RQ-VAE & RQ-Kmeans+ needed)**
 ```
 python rq/generate_indices.py
 # or
-bash rq/generate_indices_plus.sh
+(cd rq && bash generate_indices_plus.sh)
 ```
 
 - **3.3 Convert dataset format**
 ```
-python convert_dataset.py \
+python -m minionerec.preprocessing.convert_dataset \
      --dataset_name Industrial_and_Scientific \
      --data_dir /path/to/Industrial_and_Scientific \
      --output_dir /path/to/ourput_dir \
@@ -249,7 +251,7 @@ python convert_dataset.py \
 ### 4. SFT
 
 ```
-bash sft.sh \
+bash scripts/sft.sh \
      --base_model your_model_path \
      --output_dir your_ourput_dir \
      --sid_index_path your_.index.json_path \
@@ -259,7 +261,7 @@ bash sft.sh \
 ### 5. Recommendation-Oriented RL
 > (Optional) For production-scale datasets, considering the cost of reinforcement learning and diminishing marginal returns, you can perform the RL stage using only a relatively small subset on the order of tens of thousands of samples.
 ```
-bash rl.sh \
+bash scripts/rl.sh \
      --model_path your_model_path \
      --output_dir output_dir \
 ```
@@ -267,8 +269,8 @@ bash rl.sh \
 ### 6. Offline Evaluation
 
 ```
-bash evaluate.sh \
-     --exp_name your_model_path 
+# Set exp_name inside scripts/evaluate.sh first.
+bash scripts/evaluate.sh
 ```
 
 ---

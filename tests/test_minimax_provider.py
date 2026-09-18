@@ -696,7 +696,7 @@ class TestTestGenerationConfigHasNoTopKTopP(unittest.TestCase):
             None: 断言不成立时由 unittest 报告失败。
         """
         import ast, os
-        src = os.path.join(os.path.dirname(__file__), '..', 'minionerec_trainer.py')
+        src = os.path.join(os.path.dirname(__file__), '..', 'minionerec', 'training', 'trainer.py')
         with open(src) as f:
             source = f.read()
         tree = ast.parse(source)
