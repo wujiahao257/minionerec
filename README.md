@@ -5,60 +5,60 @@
 
 <img src="./assets/logo.png" width="500em" ></img> 
 
-**An Open-Source Framework for
-Scaling Generative Recommendation**
+**面向规模化生成式推荐的
+开源框架**
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache--2.0-green.svg)
 <a href="https://arxiv.org/abs/2510.24431"><img src="https://img.shields.io/static/v1?label=arXiv&message=Paper&color=red"></a>
 
-<a href="https://arxiv.org/abs/2510.24431">📄 Technical Report</a> | <a href="https://huggingface.co/kkknight/MiniOneRec">🤗 Huggingface</a> | <a href="https://modelscope.cn/models/k925238839/MiniOneRec">🤖  Modelscope</a>
+<a href="https://arxiv.org/abs/2510.24431">📄 技术报告</a> | <a href="https://huggingface.co/kkknight/MiniOneRec">🤗 Huggingface</a> | <a href="https://modelscope.cn/models/k925238839/MiniOneRec">🤖  Modelscope</a>
 </div>
 
-**MiniOneRec** is the first fully open-source **generative recommendation** framework, which provides an end-to-end workflow spanning **SID construction**, **supervised fine-tuning (SFT)**, and recommendation-oriented **reinforcement learning (RL)**. 
+**MiniOneRec** 是一个完全开源的**生成式推荐**框架，提供涵盖 **SID 构建**、**监督微调（SFT）**和面向推荐的**强化学习（RL）**的端到端流程。
 
 ---
 
-## 📢 Announcement
+## 📢 更新公告
 
-- 2026-05-13 — We have introduced the new TS-Rec codebase, following the method proposed in [Fine-grained Semantics Integration for Large Language Model-based Recommendation](https://arxiv.org/pdf/2602.22632). We sincerely thank the contributors for their valuable efforts and support in making this update available.
+- 2026-05-13 — 新增 TS-Rec 代码，实现参考论文 [Fine-grained Semantics Integration for Large Language Model-based Recommendation（面向大语言模型推荐的细粒度语义融合）](https://arxiv.org/pdf/2602.22632) 中提出的方法。感谢贡献者为此次更新付出的努力与支持。
 
-- 2026-01-04 — Regarding the potential discrepancies between the reproduced results based on the Instruct model and our reported metrics, please check whether the CC metric in the evaluation log is non-zero (refer to minionerec/evaluation/metrics.py). If it is non-zero, it indicates that the model is still generating a large number of invalid items, and constrained decoding has not been successful. We suspect this issue may be related to the versions of dependencies such as the transformer library, and we are still investigating the cause to provide a universal solution. In the meantime, you may switch the Instruct model to a base model, such as Qwen2.5-base, to avoid this problem.
+- 2026-01-04 — 如果使用 Instruct 模型复现的结果与项目报告指标有差异，请检查评测日志中的 CC 指标是否非零（参见 minionerec/evaluation/metrics.py）。非零表示评测扫描到了无效商品 SID，需要检查约束解码是否生效。原项目团队当时怀疑问题可能与 Transformers 等依赖版本有关，并在排查通用解决方案；当时建议尝试切换到 Qwen2.5-base 等基础模型。
 
-- 2025-12-04 — We update new scripts to support processing the Amazon23 dataset.
+- 2025-12-04 — 新增脚本，支持处理 Amazon23 数据集。
 
-- 2025-12-01 — We fix a bug in minionerec/datasets/recommendation.py that could cause the SID–item alignment task to see the answers in advance. This was because we had previously attempted to use partial trajectories to guide the full SID–item generation and does not affect the model performance.
+- 2025-12-01 — 修复 minionerec/datasets/recommendation.py 中可能导致 SID–商品对齐任务提前看到答案的问题。该问题源于此前尝试用部分生成轨迹引导完整 SID–商品生成；原项目公告说明其不影响模型性能。
 
-- 2025-11-20 — The SID construction method in **RQ-Kmeans+** has been updated (first proposed in **GPR** and this is the first open-source reproduction).
+- 2025-11-20 — 更新 **RQ-Kmeans+** 的 SID 构建方法（该方法最早由 **GPR** 提出，原项目将本实现介绍为首次开源复现）。
 
-- 2025-11-19 — We implemented a multi-GPU parallel text-to-embedding method based on Accelerate, which is significantly more efficient than the original version: rq/text2emb/amazon_text2emb.py
+- 2025-11-19 — 实现基于 Accelerate 的多 GPU 并行文本向量生成，相比原版本提高处理效率，代码位于 rq/text2emb/amazon_text2emb.py。
 
-- 2025-11-19 — The SID construction method in **constrained-RQ-Kmeans** has been updated.
+- 2025-11-19 — 更新 **constrained-RQ-Kmeans** 的 SID 构建方法。
 
-- 2025-11-07 — Thank you for submitting issues! Based on your feedback, we have released a new implementation. If you encounter any problems while running the code, please update to and consult the **latest version** first.
+- 2025-11-07 — 感谢大家提交问题反馈！项目已根据反馈发布新的实现。如运行代码时遇到问题，请先更新并查阅**最新版本**。
   
-- 2025-11-07 — You can now choose to freeze the LLM parameters during the SFT stage and train only the embeddings for the newly added SID vocabulary.
+- 2025-11-07 — SFT 阶段新增冻结 LLM 的选项，可仅对新增 SID 词表的 Embedding 行保留训练梯度。
 
-- 2025-10-31 — You can now directly download the implementation **checkpoints** of our MiniOnRec model.
+- 2025-10-31 — 现在可以直接下载 MiniOneRec 模型的 **checkpoint（检查点）**。
 
-- 2025-10-31 — The SID construction method in **RQ-Kmeans** has been updated.
+- 2025-10-31 — 更新 **RQ-Kmeans** 的 SID 构建方法。
 
 ---
 
-## 🛠️ Key Techniques 
+## 🛠️ 核心技术
 <div align="center">
 <img src="./assets/minionerec_framework.png" width=100% ></img> 
 </div>
 
-- **SID Construction: MiniOneRec begins by transforming every product into a compact, semantically meaningful token.** It concatenates an item’s title and description, feeds this sentence through a frozen text encoder, and then quantises the resulting embedding with a three-level RQ-VAE.
+- **SID 构建：MiniOneRec 首先将每件商品转换为紧凑且具有语义信息的 token 序列。** 将商品标题与描述拼接后，输入冻结的文本编码器获取向量，再通过三层 RQ-VAE 将连续向量量化为离散的语义 ID（Semantic ID，简称 SID）。
 
-- **SFT: With all items rewritten as SIDs, the model is first trained in a supervised fashion.** It views the chronologically ordered user history as a token sequence and learns, via next-token prediction, to generate the SID of the next product the user is likely to consume. Crucially, this stage is co-trained with a set of language-alignment objectives that map back and forth between natural language and SID space, allowing the recommender to inherit the world knowledge embedded in large language models while grounding that knowledge in discrete item codes.
+- **监督微调（SFT）：商品转换为 SID 后，首先对模型进行有监督训练。** 将按时间排序的用户历史行为表示为 token 序列，通过预测下一个 token，学习生成用户下一件可能交互商品的 SID。同时联合训练自然语言与 SID 之间的对齐任务，让模型学习两种表示之间的对应关系，将大语言模型的语言知识关联到离散商品编码。
 
-- **Recommendation-Oriented RL: After SFT, MiniOneRec is further polished with a recommendation-oriented RL phase based on GRPO.** Multiple candidate recommendations are generated for each prompt, their rewards are normalised within the group to stabilise gradients, and a KL penalty keeps the updated policy close to its reference. Because the action space is a closed list of item SIDs, the system switches to constrained beam search, which guarantees that every beam is unique and valid, greatly improving sampling efficiency and diversity. The reward signal itself blends a binary correctness term with a rank-aware component that penalises high-probability yet incorrect items more heavily, and can be augmented with collaborative-filtering scores. Together, this pipeline enables MiniOneRec to couple dense linguistic knowledge, achieving a high-performance, lightweight generative recommendation system.
+- **面向推荐的强化学习（RL）：SFT 之后，采用 GRPO 风格的强化学习进一步优化推荐策略。** 针对每个输入生成多个推荐候选，通过组内奖励归一化计算优势，并用 KL 惩罚约束策略相对于参考模型的偏移。由于输出空间是商品 SID 目录，系统使用受约束的 beam 搜索限制合法前缀，以提高候选生成效率；实际有效性仍需结合目录、分词器和生成配置检查。奖励可结合是否命中的二值信号与排名信号，对排名靠前但错误的候选施加更大惩罚，也提供基于协同过滤分数的奖励选项。这些步骤将语言模型与离散商品表示连接起来，构成轻量的生成式推荐流程。
 
 ---
 
-## 📊 Evaluation
+## 📊 评测结果
 
 <div align="center">
 <img src="./assets/minionerec_main_result.png" width=100% ></img> 
@@ -66,77 +66,77 @@ Scaling Generative Recommendation**
 
 ---
 
-## 🗂️ Repository Overview
+## 🗂️ 仓库结构
 
-| File / Directory          | Description                                                                                                   |
+| 文件 / 目录               | 说明                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `scripts/sft.sh`                  | Shell script to start the Supervised Fine-Tuning (SFT) stage                                           |
-| `minionerec/training/sft.py`                  | Python implementation of the SFT training loop                                                            |
-| `minionerec/experiments/gpr/sft.py`              | GPR-inspired SFT with Value-Aware Fine-Tuning (VAFT): implements weighted loss based on simulated item value                            |
-| `scripts/rl.sh`                   | Shell script to start the Reinforcement Learning (RL) stage                             |
-| `minionerec/training/rl.py`                   | Python implementation of the RL training loop                                              |
-| `minionerec/experiments/gpr/rl.py`               | GPR-inspired RL with Hierarchy Enhanced Policy Optimization (HEPO)                                                 |
-| `minionerec/training/trainer.py`   | MiniOneRec trainer — GRPO-based trainer specialized for generative recommendation                              |
-| `config/`                | YAML configuration files                                            |
-| `scripts/evaluate.sh`     | One-click offline Top-K evaluation script                                                        |
-| `minionerec/evaluation/evaluate.py`     | Evaluation utilities for computing HR@K and NDCG@K.                                                           |
-| `minionerec/evaluation/logits_processor.py`                | Logit processor for constrained decoding (Python implementation)                                         |
-| `minionerec/datasets/recommendation.py`                | Data pipeline for SFT and RL training                          |
-| `minionerec/preprocessing/convert_dataset.py`                | Converts an RQ-trained dataset to the SFT-then-RL format                                            |
-| `minionerec/experiments/gpr/convert_dataset.py`           | GPR-inspired dataset converter: injects simulated heterogeneous tokens (U/E/I/O) to emulate unified input representation                                         |
-| `scripts/amazon18_data_process.sh`                |    Shell script to filter and preprocess Amazon18 data into an RQ-ready format                                      |
-| `minionerec/preprocessing/amazon18.py`                |   Python implementation of the Amazon18 data preprocessing pipeline                                        |
-| `minionerec/experiments/gpr/amazon18.py`            |   GPR-inspired Amazon18 preprocessing: extracts heterogeneous features for unified input representation                         |
-| `scripts/amazon23_data_process.sh`                |    Shell script to filter and preprocess Amazon23 data into an RQ-ready format                                      |
-| `minionerec/preprocessing/amazon23.py`                |   Python implementation of the Amazon23 data preprocessing pipeline                                        |
-| `rq/text2emb/amazon_text2emb.sh`                |   Shell script to generate item embeddings (title + description) via emb_model for the Amazon dataset                                   |
-| `rq/text2emb/amazon_text2emb.py`                |   Python implementation of the above embedding generation                                         |
-| `rq/text2emb/amazon_text2emb_gpr.py`           |   GPR-inspired text-to-embedding                                 |
-| `rq/generate_indices.py`                |   Generates the SID file after training an RQ-VAE model                                       |
-| `rq/rqvae.sh`                |   Shell script to train RQ-VAE on Amazon item embeddings                        |
-| `rq/rqvae.py`                |   Python implementation of RQ-VAE training                                            |
-| `rq/rqkmeans_faiss.py`                |   Python implementation of RQ-Kmeans training based on faiss                                          |
-| `rq/rqkmeans_constrained.py`                |   Python implementation of Constrained RQ-Kmeans                         |
-| `rq/rqkmeans_constrained.sh`                |   Shell script to train constrained RQ-Kmeans constrained on Amazon item embeddings                        |
-| `rq/rqkmeans_plus.py`                |   Python implementation of RQ-Kmeans+                        |
-| `rq/rqkmeans_plus.sh`                |   Shell script to train RQ-Kmeans+ constrained on Amazon item embeddings                        |
-| `rq/generate_indices_plus.py`                |   Generates the SID file after training an RQ-Kmeans+ model                                       |
-| `rq/generate_indices_plus.sh`                |   Shell script to generate the SID file after training an RQ-Kmeans+ model                                       |
-| `requirements.txt`        | List of Python dependencies                                                                                |
+| `scripts/sft.sh`                  | 启动监督微调（SFT）的 Shell 脚本 |
+| `minionerec/training/sft.py`                  | SFT 训练入口，负责模型、数据和 Trainer 的配置 |
+| `minionerec/experiments/gpr/sft.py`              | GPR 实验分支：定义价值感知微调（VAFT）加权损失，当前默认数据集尚未提供价值权重字段 |
+| `scripts/rl.sh`                   | 启动强化学习（RL）的 Shell 脚本 |
+| `minionerec/training/rl.py`                   | RL 训练入口，负责数据、奖励与训练器的配置 |
+| `minionerec/experiments/gpr/rl.py`               | GPR 实验分支：包含层次增强策略优化（HEPO）奖励实现 |
+| `minionerec/training/trainer.py`   | 面向生成式推荐的 GRPO 风格训练器 |
+| `config/`                | YAML 配置文件 |
+| `scripts/evaluate.sh`     | 离线 Top-K 评测调度脚本，运行前需配置模型路径 |
+| `minionerec/evaluation/evaluate.py`     | 离线推荐候选生成；HR@K、NDCG@K 由同目录 metrics.py 计算 |
+| `minionerec/evaluation/logits_processor.py`                | 受约束解码的 logits 处理器 |
+| `minionerec/datasets/recommendation.py`                | SFT、RL 和评测所用的数据集与样本构造 |
+| `minionerec/preprocessing/convert_dataset.py`                | 将量化产生的 SID 索引与交互数据转换为 SFT、RL 使用的格式 |
+| `minionerec/experiments/gpr/convert_dataset.py`           | GPR 实验分支的数据转换器，处理模拟上下文等字段 |
+| `scripts/amazon18_data_process.sh`                | Amazon18 数据过滤与预处理启动脚本 |
+| `minionerec/preprocessing/amazon18.py`                | Amazon18 数据预处理实现 |
+| `minionerec/experiments/gpr/amazon18.py`            | GPR 实验分支：Amazon18 预处理与模拟异构特征构造 |
+| `scripts/amazon23_data_process.sh`                | Amazon23 数据过滤与预处理启动脚本 |
+| `minionerec/preprocessing/amazon23.py`                | Amazon23 数据预处理实现 |
+| `rq/text2emb/amazon_text2emb.sh`                | 通过文本编码模型为 Amazon 商品标题与描述生成向量的启动脚本 |
+| `rq/text2emb/amazon_text2emb.py`                | 商品文本向量生成实现 |
+| `rq/text2emb/amazon_text2emb_gpr.py`           | GPR 实验分支的商品文本向量生成实现 |
+| `rq/generate_indices.py`                | 训练 RQ-VAE 后导出商品 SID 索引 |
+| `rq/rqvae.sh`                | 使用 Amazon 商品向量训练 RQ-VAE 的启动脚本 |
+| `rq/rqvae.py`                | RQ-VAE 训练入口 |
+| `rq/rqkmeans_faiss.py`                | 基于 FAISS 的 RQ-Kmeans 实现 |
+| `rq/rqkmeans_constrained.py`                | 带聚类容量约束的 RQ-Kmeans 实现 |
+| `rq/rqkmeans_constrained.sh`                | 使用 Amazon 商品向量训练带约束 RQ-Kmeans 的启动脚本 |
+| `rq/rqkmeans_plus.py`                | RQ-Kmeans+ 训练实现 |
+| `rq/rqkmeans_plus.sh`                | 使用 Amazon 商品向量训练 RQ-Kmeans+ 的启动脚本 |
+| `rq/generate_indices_plus.py`                | 训练 RQ-Kmeans+ 后导出商品 SID 索引 |
+| `rq/generate_indices_plus.sh`                | RQ-Kmeans+ 的 SID 索引导出启动脚本 |
+| `requirements.txt`        | Python 依赖列表 |
 
 ---
 
-## 🚀 Quickstart
+## 🚀 快速开始
 
-Use the pre-trained Industrial/Office SIDs we provide for a quick start!
-Reproduction can be achieved with just 4–8 A100/H100 GPUs.
+可以直接使用项目提供的 Industrial / Office 商品 SID，快速开始训练！
+原项目给出的复现资源参考为 4–8 张 A100/H100 GPU；运行前请配置脚本中的模型、数据与输出路径。
 
-### 1. Create an isolated Python environment
+### 1. 创建独立的 Python 环境
 
 ```bash
 conda create -n MiniOneRec python=3.11 -y
 conda activate MiniOneRec
 ```
 
-### 2. Install required packages
+### 2. 安装所需依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. SFT
+### 3. 监督微调（SFT）
 
 ```bash
 bash scripts/sft.sh
 ```
 
-### 4. Recommendation-Oriented RL
+### 4. 面向推荐的强化学习（RL）
 
 ```bash
 bash scripts/rl.sh
 ```
 
-### 5. Run the evaluation bash
+### 5. 运行评测脚本
 
 ```bash
 bash scripts/evaluate.sh
@@ -144,37 +144,37 @@ bash scripts/evaluate.sh
 
 ---
 
-## 📜 Full Pipeline Walk-through
+## 📜 完整流程说明
 
-### 0. Prerequisites
-- GPUs: <e.g., 4–8 × A100/H100 80 GB or comparable>
+### 0. 前置条件
+- GPU：例如 4–8 张 A100/H100 80 GB，或相当配置
 - Python: 3.11
 
-### 1. Environment Setup
-- **1.1 Clone the repo**
+### 1. 环境配置
+- **1.1 克隆仓库**
 ```
 git clone https://github.com/AkaliKong/MiniOneRec.git
 cd MiniOneRec
 ```
-- **1.2 Create and activate a conda env**
+- **1.2 创建并激活 conda 环境**
 ```
 conda create -n MiniOneRec python=3.11 -y
 conda activate MiniOneRec
 ```
-- **1.3 Install dependencies**
+- **1.3 安装依赖**
 ```
 pip install -r requirements.txt
 ```
 
-### 2. Data Preparation
+### 2. 数据准备
 
-- **2.1 Download the raw dataset (Optional)**  
-  Get it from the official page:
+- **2.1 下载原始数据集（可选）**
+  可从以下官方页面获取：
   [Amazon Reviews 2023](https://amazon-reviews-2023.github.io/), 
   [Amazon Reviews 2018](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2/), 
   [Amazon Reviews 2014](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon/links.html).
-  Note: The Industrial and Office datasets are included in Amazon 2018; the Amazon 2014 and 2023 versions require slight modifications to our minionerec/preprocessing/amazon18.py.
-- **2.2 Filter and preprocess**
+  说明：Industrial 和 Office 数据包含在 Amazon 2018 中。处理 Amazon 2023 时可使用 minionerec/preprocessing/amazon23.py；其他版本需要按原始字段格式调整预处理逻辑。
+- **2.2 数据过滤与预处理**
 ```
 python -m minionerec.preprocessing.amazon18 \
      --dataset  your_dataset_type \
@@ -186,7 +186,7 @@ python -m minionerec.preprocessing.amazon18 \
      --ed_month 11 \
      --output_path ./data/Amazon18
 ```
-- **2.3 Encode item text to embeddings**
+- **2.3 将商品文本编码为向量**
 ```
 accelerate launch --num_processes 8 rq/text2emb/amazon_text2emb.py \
      --dataset your_dataset_type \
@@ -195,11 +195,11 @@ accelerate launch --num_processes 8 rq/text2emb/amazon_text2emb.py \
      --plm_checkpoint your_emb_model_path
 ```
 
-### 3. SID Construction
+### 3. SID 构建
 
-Choose either 3.1.1, 3.1.2, 3.1.3 or 3.1.4.
+从 3.1.1、3.1.2、3.1.3、3.1.4 中选择一种构建方案。
 
-- **3.1.1 Train RQ-VAE on the embeddings**
+- **3.1.1 使用商品向量训练 RQ-VAE**
 ```
 python rq/rqvae.py \
       --data_path xxx/data/Industrial_and_Scientific/Industrial_and_Scientific.emb-qwen-td.npy \
@@ -209,22 +209,22 @@ python rq/rqvae.py \
       --batch_size 20480
 ```
 
-- **3.1.2 Train RQ-Kmeans on the embeddings**
+- **3.1.2 使用商品向量训练 RQ-Kmeans**
 
 ```
 conda install faiss-gpu
-python rq/rqkmeans_faiss.py --dataset Industrial_and_Scientific # The RQ-Kmeans method based on semantic embeddings has a relatively high collision rate.
+python rq/rqkmeans_faiss.py --dataset Industrial_and_Scientific # 基于语义向量的 RQ-Kmeans 方法碰撞率相对较高。
 ```
 
-- **3.1.3 Train constrained RQ-Kmeans on the embeddings**
-For conflicting items, we add an extra layer to perform deduplication; meanwhile, we use a balanced constraint to ensure that the SIDs are evenly distributed.
+- **3.1.3 使用商品向量训练带约束的 RQ-Kmeans**
+对完整编码冲突的商品，追加一层编号以区分不同商品；同时对聚类大小施加平衡约束，改善码本使用分布。
 ```
 pip install k_means_constrained
 pip install polars
 (cd rq && bash rqkmeans_constrained.sh)
 ```
 
-- **3.1.4 Train RQ-Kmeans+ on the embeddings**
+- **3.1.4 使用商品向量训练 RQ-Kmeans+**
 ```
 pip install k_means_constrained
 pip install polars
@@ -232,14 +232,14 @@ pip install polars
 (cd rq && bash rqkmeans_plus.sh)
 ```
 
-- **3.2 Generate indices(only RQ-VAE & RQ-Kmeans+ needed)**
+- **3.2 生成索引（仅 RQ-VAE 和 RQ-Kmeans+ 需要）**
 ```
 python rq/generate_indices.py
-# or
+# 或者
 (cd rq && bash generate_indices_plus.sh)
 ```
 
-- **3.3 Convert dataset format**
+- **3.3 转换数据集格式**
 ```
 python -m minionerec.preprocessing.convert_dataset \
      --dataset_name Industrial_and_Scientific \
@@ -248,7 +248,7 @@ python -m minionerec.preprocessing.convert_dataset \
 
 ```
 
-### 4. SFT
+### 4. 监督微调（SFT）
 
 ```
 bash scripts/sft.sh \
@@ -258,58 +258,58 @@ bash scripts/sft.sh \
      --item_meta_path your_.item.json_path
 ```
 
-### 5. Recommendation-Oriented RL
-> (Optional) For production-scale datasets, considering the cost of reinforcement learning and diminishing marginal returns, you can perform the RL stage using only a relatively small subset on the order of tens of thousands of samples.
+### 5. 面向推荐的强化学习（RL）
+> （可选）对于生产规模的数据集，考虑强化学习的成本和边际收益递减，可以只使用数万条规模的较小子集进行 RL 训练。
 ```
 bash scripts/rl.sh \
      --model_path your_model_path \
      --output_dir output_dir \
 ```
 
-### 6. Offline Evaluation
+### 6. 离线评测
 
 ```
-# Set exp_name inside scripts/evaluate.sh first.
+# 先在 scripts/evaluate.sh 中设置 exp_name。
 bash scripts/evaluate.sh
 ```
 
 ---
 
-## 🤖 Supported LLM Providers
+## 🤖 支持的 LLM 服务商
 
-MiniOneRec supports multiple LLM providers for text enrichment tasks (e.g., user preference and item characteristic extraction). Configure the provider in your `api_info` dictionary:
+MiniOneRec 的文本辅助工具支持多个 LLM 服务商，可用于用户偏好、商品特征提取等文本增强任务。在 `api_info` 字典中配置服务商：
 
-| Provider | `provider` value | Default Base URL | Example Models |
+| 服务商 | `provider` 取值 | 默认 API 地址 | 模型示例 |
 |----------|-----------------|------------------|----------------|
 | OpenAI | `"openai"` | — | `text-davinci-003` |
 | DeepSeek | `"deepseek"` | `https://api.deepseek.com` | `deepseek-chat` |
 | [MiniMax](https://www.minimaxi.com) | `"minimax"` | `https://api.minimax.io/v1` | `MiniMax-M2.7`, `MiniMax-M2.5` |
 
-**Example — using MiniMax:**
+**示例：使用 MiniMax**
 
 ```python
 api_info = {
     "provider": "minimax",
     "api_key_list": ["your-minimax-api-key"],
-    "base_url": "https://api.minimax.io/v1",  # optional, this is the default
+    "base_url": "https://api.minimax.io/v1",  # 可选，当前值即为默认地址
 }
 get_res_batch("MiniMax-M2.7", prompt_list, max_tokens=512, api_info=api_info)
 ```
 
 ---
 
-## 📝 Upcoming Features
+## 📝 后续计划
 
-We are actively extending MiniOneRec’s capabilities. The following enhancements are already on our roadmap:
-* ⏱️ **More SID Construction Algorithms**: forthcoming support for R-VQ, RQ-Kmeans, RQ-OPQ, and RQ-VAE-v2 (PLUM).
-* ⚙️ **MiniOneRec-Think**: a module that seamlessly integrates dialogue, reasoning, and personalized recommendation, providing an all-in-one solution for complex interactive scenarios.
-* 🔍 **Broader Dataset Support**: additional popular public datasets, including Yelp, to further validate the generality of our algorithms.
+原项目计划继续扩展 MiniOneRec 的能力，以下为其路线图；计划不代表当前仓库已经实现：
+* ⏱️ **更多 SID 构建算法**：原路线图列出 R-VQ、RQ-Kmeans、RQ-OPQ 和 RQ-VAE-v2（PLUM）；其中 RQ-Kmeans 已在当前仓库提供实现。
+* ⚙️ **MiniOneRec-Think**：计划融合对话、推理和个性化推荐，为复杂交互场景提供一体化模块。
+* 🔍 **支持更多数据集**：计划增加 Yelp 等常用公开数据集，进一步验证算法的通用性。
 
 ---
 
-## 🏫 Institutions  <!-- omit in toc -->
+## 🏫 参与机构  <!-- omit in toc -->
 
-This project is developed by the following institutions:
+本项目由以下机构参与开发：
 
 - <img src="assets/lds.png" width="28px"> [LDS](https://data-science.ustc.edu.cn/_upload/tpl/15/04/5380/template5380/index.html)
 - <img src="assets/alphalab.jpg" width="28px"> [AlphaLab](https://alphalab-ustc.github.io/index.html)
@@ -317,23 +317,23 @@ This project is developed by the following institutions:
  
 ---
 
-## 🧩 Contributing
+## 🧩 参与贡献
 
-We welcome and appreciate all contributions! If you have ideas to improve MiniOneRec, please feel free to submit a pull request (PR).
+欢迎并感谢所有贡献！如果你有改进 MiniOneRec 的想法，欢迎提交 Pull Request（PR）。
 
 ---
-## 🙏 Acknowledgements
+## 🙏 致谢
 
-This repository reuses or adapts portions of code from the following open-source projects. We gratefully acknowledge their authors and contributors:
+本仓库复用或改编了以下开源项目的部分代码，感谢其作者和贡献者：
 
 - [ReRe](https://github.com/sober-clever/ReRe)
 - [LC-Rec](https://github.com/zhengbw0324/LC-Rec)
 
 ---
 
-## 🔖 Citation <!-- omit in toc -->
+## 🔖 引用 <!-- omit in toc -->
 
-If you find our code/paper/model helpful, please consider citing our papers 📝 and staring us ⭐️！
+如果本项目的代码、论文或模型对你有帮助，欢迎引用相关论文 📝，并为项目点一个 Star ⭐️！
 
 ```bib
 @misc{MiniOneRec,
@@ -364,5 +364,5 @@ If you find our code/paper/model helpful, please consider citing our papers 📝
 ---
 
 <div align="center">
-We welcome contributions from the community! 🤝
+欢迎社区贡献！🤝
 </div>
