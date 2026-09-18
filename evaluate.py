@@ -22,10 +22,26 @@ MOD = int(1e9 + 9)
 import numpy as np
 
 def get_hash(x):
+    """将 token ID 转成字符串并用连字符连接，作为前缀查表键。
+
+    Args:
+        x (list[int] | torch.Tensor): 需要转换为查表键的 token ID 序列。
+
+    Returns:
+        str: 确定性的前缀键，不是密码学哈希。
+    """
     x = [str(_) for _ in x]
     return '-'.join(x)
 
 def set_seed(seed):
+    """固定 Python、NumPy 或 PyTorch 随机状态，减少重复实验中的随机差异。
+
+    Args:
+        seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+
+    Returns:
+        None: 修改当前进程的随机状态和相关后端设置。
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -49,6 +65,25 @@ def main(
     max_new_tokens: int = 256,
     num_beams: int = 50,
 ):
+    """加载模型和 SID 目录，构造评测输入，受约束生成候选并保存预测 JSON。
+
+    Args:
+        base_model (str): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+        train_file (str): 交互 CSV 路径；包含历史商品和目标商品字段，实际任务决定使用标题还是 SID。
+        info_file (str): 商品目录 TXT 路径，首列为 SID，后续列为标题与商品 ID；用于约束或合法性检查。
+        category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
+        test_data_path (str): 用于离线生成的测试 CSV 路径。
+        result_json_data (str): 输出预测 JSON 的文件路径，每条样本追加 predict 候选列表。
+        batch_size (int): 一次处理的样本数量；SFT 入口中表示用于推算累积步数的全局目标 batch。
+        K (int): 预留的示例数量参数；当前 SID/标题样本构造不实际使用它。
+        seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+        length_penalty (float): 生成器的序列长度惩罚系数；0 表示不额外按长度调整 beam 分数。
+        max_new_tokens (int): 每条生成序列新增 token 的上限，不包含 prompt 长度。
+        num_beams (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+
+    Returns:
+        None: 执行对应命令行流程并写出结果。
+    """
     random.seed(seed)
     set_seed(seed)
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -120,12 +155,30 @@ def main(
 
     # Define prefix constraint functions
     def prefix_allowed_tokens_fn_semantic(batch_id, input_ids):
+        """根据当前前缀查找允许生成的下一个 token。
+
+        Args:
+            batch_id (int): 生成器当前请求在 batch 中的编号；目录约束对所有请求共享同一查表。
+            input_ids (list[int]): 当前回答前缀的 token ID，用于查询共享合法后继表。
+
+        Returns:
+            list[int]: 合法后继 token ID；找不到前缀时返回空列表。
+        """
         hash_number = get_hash(input_ids)
         if hash_number in hash_dict:
             return hash_dict[hash_number]
         return []
         
     def prefix_allowed_tokens_fn_title(batch_id, input_ids):
+        """根据当前前缀查找允许生成的下一个 token。
+
+        Args:
+            batch_id (int): 生成器当前请求在 batch 中的编号；目录约束对所有请求共享同一查表。
+            input_ids (list[int]): 当前回答前缀的 token ID，用于查询共享合法后继表。
+
+        Returns:
+            list[int]: 合法后继 token ID；找不到前缀时返回空列表。
+        """
         hash_number = get_hash(input_ids)
         if hash_number in hash_dict_title:
             return hash_dict_title[hash_number]
@@ -156,6 +209,18 @@ def main(
             length_penalty=1.0,
             **kwargs,
     ):
+        """左补齐当前批次的 prompt，执行受 SID 约束的确定性 beam 生成并解码。
+
+        Args:
+            encodings (list[dict[str, list[int]]]): 当前 batch 的 prompt 编码列表；函数会手动左 padding。
+            num_beams (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+            max_new_tokens (int): 每条生成序列新增 token 的上限，不包含 prompt 长度。
+            length_penalty (float): 生成器的序列长度惩罚系数；0 表示不额外按长度调整 beam 分数。
+            kwargs (dict[str, object]): 额外传给 GenerationConfig 的生成参数，避免与显式参数重复。
+
+        Returns:
+            list[list[str]]: 每条输入对应 num_beams 个候选 SID 字符串。
+        """
         maxLen = max([len(_["input_ids"]) for _ in encodings])
 
         padding_encodings = {"input_ids": []}

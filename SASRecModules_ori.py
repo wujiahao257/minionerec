@@ -5,7 +5,25 @@ import torch.nn.functional as F
 
 
 class PositionwiseFeedForward(nn.Module):
+    """以两个 kernel=1 的卷积执行逐位置前馈变换，并加入残差和归一化。
+
+    Args:
+        d_in (int): 逐位置前馈层的输入与输出通道数。
+        d_hid (int): 逐位置前馈层中间通道数。
+        dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+    """
     def __init__(self, d_in, d_hid, dropout=0.1):
+        """初始化 PositionwiseFeedForward：以两个 kernel=1 的卷积执行逐位置前馈变换，并加入残差和归一化。
+
+        Args:
+            self (PositionwiseFeedForward): 当前实例，由 Python 在调用实例方法时自动传入。
+            d_in (int): 逐位置前馈层的输入与输出通道数。
+            d_hid (int): 逐位置前馈层中间通道数。
+            dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super().__init__()
         self.w_1 = nn.Conv1d(d_in, d_hid, 1)
         self.w_2 = nn.Conv1d(d_hid, d_in, 1)
@@ -13,6 +31,15 @@ class PositionwiseFeedForward(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
+        """转置后执行两层逐位置卷积，加入残差并进行层归一化。
+
+        Args:
+            self (PositionwiseFeedForward): 当前实例，由 Python 在调用实例方法时自动传入。
+            x (torch.Tensor): 输入序列表示 [B,T,H]，内部转置为 [B,H,T] 供 Conv1d 处理。
+
+        Returns:
+            torch.Tensor: 与输入同形状 [B,T,H]。
+        """
         residual = x
         output = x.transpose(1, 2)
         output = self.w_2(F.relu(self.w_1(output)))
@@ -24,7 +51,27 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
+    """通过拆分 batch 维实现多头因果注意力，同时屏蔽 padding 并加入查询残差。
+
+    Args:
+        hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+        num_units (int): Q/K/V 线性投影宽度；当前分头实现按 hidden_size 切分，通常设为相同值。
+        num_heads (int): 注意力头数；隐藏维度必须能被它整除。
+        dropout_rate (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+    """
     def __init__(self, hidden_size, num_units, num_heads, dropout_rate):
+        """初始化 MultiHeadAttention：通过拆分 batch 维实现多头因果注意力，同时屏蔽 padding 并加入查询残差。
+
+        Args:
+            self (MultiHeadAttention): 当前实例，由 Python 在调用实例方法时自动传入。
+            hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+            num_units (int): Q/K/V 线性投影宽度；当前分头实现按 hidden_size 切分，通常设为相同值。
+            num_heads (int): 注意力头数；隐藏维度必须能被它整除。
+            dropout_rate (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super().__init__()
         self.hidden_size = hidden_size
         self.num_heads = num_heads
@@ -38,12 +85,15 @@ class MultiHeadAttention(nn.Module):
 
 
     def forward(self, queries, keys):
-        """
-        :param queries: A 3d tensor with shape of [N, T_q, C_q]
-        :param keys: A 3d tensor with shape of [N, T_k, C_k]
-        
-        :return: A 3d tensor with shape of (N, T_q, C)
-        
+        """计算多头 Q/K/V 注意力，屏蔽 padding 与未来位置，再合头并加查询残差。
+
+        Args:
+            self (MultiHeadAttention): 当前实例，由 Python 在调用实例方法时自动传入。
+            queries (torch.Tensor): 查询表示，shape [B,Tq,H]，在注意力输出后还用于残差相加。
+            keys (torch.Tensor): 键和值的输入表示，shape [B,Tk,H]，同时用于构造 padding 掩码。
+
+        Returns:
+            torch.Tensor: shape [B,Tq,H] 的注意力表示。
         """
         Q = self.linear_q(queries)  # (N, T_q, C)
         K = self.linear_k(keys)  # (N, T_k, C)

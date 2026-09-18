@@ -11,7 +11,15 @@ from typing import Dict, List, Any
 import argparse
 
 def load_dataset(data_dir: str, dataset_name: str) -> Dict[str, Any]:
-    """Load all dataset files"""
+    """读取商品元数据、SID 索引和存在的 train/valid/test 原子交互文件。
+
+    Args:
+        data_dir (str): 数据集目录，内含同名前缀的 item/index JSON 和 train/valid/test inter 文件。
+        dataset_name (str): 数据集名称，用来拼接数据文件名或标记结果。
+
+    Returns:
+        dict[str, object]: 包含 items、item_to_semantic、splits。
+    """
     data = {}
     
     # Load item metadata (id -> {title, description, ...})
@@ -35,12 +43,28 @@ def load_dataset(data_dir: str, dataset_name: str) -> Dict[str, Any]:
     return data
 
 def semantic_tokens_to_id(tokens: List[str]) -> str:
-    """Convert semantic tokens list to concatenated string with brackets preserved"""
+    """按层顺序直接拼接 SID token，保留尖括号且不插入空格。
+
+    Args:
+        tokens (list[str]): 按量化层顺序排列的 SID token 字符串，拼接时保留尖括号。
+
+    Returns:
+        str: 一个商品的完整 SID 字符串。
+    """
     # Keep brackets and concatenate directly (no spaces)
     return ''.join(tokens)
 
 def create_item_info_file(items: Dict[str, Dict], item_to_semantic: Dict[str, List], output_path: str):
-    """Create item info file (sid -> title -> item_id mapping)"""
+    """关联 SID、标题和商品编号，写出供约束解码使用的商品目录。
+
+    Args:
+        items (dict[str, dict[str, object]]): 商品编号到元数据字典的映射，包含标题、描述等字段。
+        item_to_semantic (dict[str, list[str]]): 商品编号到多层 SID token 列表的映射。
+        output_path (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 写出三列制表符分隔的 info 文件。
+    """
     with open(output_path, 'w', encoding='utf-8') as f:
         for item_id, item_data in items.items():
             # Get semantic ID from index mapping
@@ -55,7 +79,22 @@ def convert_interactions_to_csv(splits: Dict[str, List], items: Dict[str, Dict],
                                item_to_semantic: Dict[str, List], output_dir: str, category: str = "Office_Products",
                                max_valid_samples: int = None, max_test_samples: int = None, seed: int = 42,
                                keep_longest_only: bool = True):
-    """Convert interaction data to MiniOneRec CSV format using semantic IDs"""
+    """把原子交互中的商品编号关联到标题与 SID，可抽样并写出训练格式 CSV。
+
+    Args:
+        splits (dict[str, list[list[str]]]): train/valid/test 对应的交互行，每行包含用户、历史 ID 序列、目标 ID；GPR 还可含上下文。
+        items (dict[str, dict[str, object]]): 商品编号到元数据字典的映射，包含标题、描述等字段。
+        item_to_semantic (dict[str, list[str]]): 商品编号到多层 SID token 列表的映射。
+        output_dir (str): 输出目录；转换入口写数据，训练入口写 checkpoint 和 tokenizer。
+        category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
+        max_valid_samples (int | None): 相应验证集或测试集的抽样上限；None 表示不设上限。
+        max_test_samples (int | None): 相应验证集或测试集的抽样上限；None 表示不设上限。
+        seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+        keep_longest_only (bool): 训练集是否每用户仅保留最长历史；等长时保留先遇到的样本，不保证是最新窗口。
+
+    Returns:
+        None: 写出 CSV；缺失目标 SID 的记录被跳过。
+    """
     
     import random
     random.seed(seed)
@@ -159,6 +198,14 @@ def convert_interactions_to_csv(splits: Dict[str, List], items: Dict[str, Dict],
                 print(f"    item_title: {rows[0]['item_title'][:50]}...")
 
 def main():
+    """读取转换参数，关联原子交互、商品元数据和 SID 索引，写出 CSV 与 info。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        None: 执行对应命令行流程并写出结果。
+    """
     parser = argparse.ArgumentParser(description='Convert dataset (Office_Products/Industrial_and_Scientific) to MiniOneRec format with semantic IDs')
     parser.add_argument('--data_dir', type=str, 
                        help='Path to dataset directory')

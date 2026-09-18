@@ -12,6 +12,14 @@ from accelerate import Accelerator
 from accelerate.utils import gather_object
 
 def load_data(args):
+    """从 root 下读取当前数据集的商品元数据 JSON。
+
+    Args:
+        args (argparse.Namespace): root、dataset、plm_name、max_sent_len 等文本编码配置。
+
+    Returns:
+        dict[str, dict]: 商品编号到元数据的映射。
+    """
     if args.root:
         print("args.root: ", args.root)
     item2feature_path = os.path.join(args.root, f'{args.dataset}.item.json')
@@ -19,6 +27,15 @@ def load_data(args):
     return item2feature
 
 def generate_text(item2feature, features):
+    """清洗所选商品字段并拼接文本，空内容回退到 unknown item。
+
+    Args:
+        item2feature (dict[str, dict[str, object]]): 商品编号到元数据字典的映射，包含标题、描述等字段。
+        features (list[str]): 要拼接的商品字段名，主入口选择 title 和 description。
+
+    Returns:
+        list[tuple[int | str, str]]: 商品编号与文本的配对列表。
+    """
     item_text_list = []
     for item in item2feature:
         data = item2feature[item]
@@ -43,6 +60,14 @@ def generate_text(item2feature, features):
     return item_text_list
 
 def preprocess_text(args):
+    """加载商品元数据，提取标题和描述作为文本编码输入。
+
+    Args:
+        args (argparse.Namespace): root、dataset、plm_name、max_sent_len 等文本编码配置。
+
+    Returns:
+        list[tuple[int | str, str]]: 商品编号与标题描述文本。
+    """
     print('Process text data: ')
     print('Dataset: ', args.dataset)
     item2feature = load_data(args)
@@ -50,6 +75,19 @@ def preprocess_text(args):
     return item_text_list
 
 def generate_item_embedding(args, item_text_list, tokenizer, model, accelerator, word_drop_ratio=-1):
+    """按进程划分文本，用冻结模型得到隐藏状态并 mask 平均池化，汇总排序后保存向量。
+
+    Args:
+        args (argparse.Namespace): root、dataset、plm_name、max_sent_len 等文本编码配置。
+        item_text_list (list[tuple[int | str, str]]): 商品编号及清洗后文本的序列；多进程按位置划分并按编号汇总。
+        tokenizer (transformers.PreTrainedTokenizerBase | None): 分词器，负责文本与 token ID 的转换；部分元数据类允许 None 以返回原始任务记录。
+        model (transformers.PreTrainedModel): 输出 last_hidden_state 的文本编码模型，在推理模式下提取商品向量。
+        accelerator (accelerate.Accelerator): 提供进程编号、设备、同步和结果汇总所需的运行上下文。
+        word_drop_ratio (float): 按空格切词后的随机删除概率；小于等于 0 不启用词丢弃。
+
+    Returns:
+        None: 主进程保存 [N,D] 的 .npy 文件。
+    """
     all_ids, all_texts = zip(*item_text_list)
     
     total_items = len(all_texts)
@@ -146,6 +184,14 @@ def generate_item_embedding(args, item_text_list, tokenizer, model, accelerator,
         print(f"Saved to {file_path}")
 
 def load_qwen_model(model_path):
+    """从指定 checkpoint 加载 tokenizer 与 AutoModel 文本编码器。
+
+    Args:
+        model_path (str): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+
+    Returns:
+        tuple[transformers.PreTrainedTokenizerBase, transformers.PreTrainedModel]: 分词器和模型。
+    """
     print("Loading Qwen Model:", model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     model = AutoModel.from_pretrained(
@@ -157,6 +203,14 @@ def load_qwen_model(model_path):
     return tokenizer, model
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='Beauty', help='Beauty / Sports / Toys')
     parser.add_argument('--root', type=str, default="")

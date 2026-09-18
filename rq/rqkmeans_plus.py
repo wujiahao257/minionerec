@@ -14,14 +14,47 @@ from trainer import Trainer
 
 class ResidualEncoderWrapper(nn.Module):
 
+    """为已有编码器增加恒等残差连接，输出 x + MLP(x)。
+
+    Args:
+        original_encoder (torch.nn.Module): 原有 MLP 编码器；包装后计算 x + encoder(x)，输入输出末维必须相同。
+    """
     def __init__(self, original_encoder):
+        """初始化 ResidualEncoderWrapper：为已有编码器增加恒等残差连接，输出 x + MLP(x)。
+
+        Args:
+            self (ResidualEncoderWrapper): 当前实例，由 Python 在调用实例方法时自动传入。
+            original_encoder (torch.nn.Module): 原有 MLP 编码器；包装后计算 x + encoder(x)，输入输出末维必须相同。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super().__init__()
         self.mlp = original_encoder
 
     def forward(self, x):
+        """计算输入与 MLP 输出之和，实现残差编码。
+
+        Args:
+            self (ResidualEncoderWrapper): 当前实例，由 Python 在调用实例方法时自动传入。
+            x (torch.Tensor): 原始向量 [B,D]，encoder 输出末维必须仍为 D 才能残差相加。
+
+        Returns:
+            torch.Tensor: 与输入同形状的 [B,D] 表示。
+        """
         return x + self.mlp(x)
 
 def apply_rqkmeans_plus_strategy(model, codebook_path, device):
+    """为 encoder 加残差、将末层 Linear 零初始化，并载入约束聚类码本。
+
+    Args:
+        model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+        codebook_path (str): 包含 codebook_0、codebook_1 等数组的预训练码本 NPZ 路径。
+        device (str | torch.device | None): 张量或模型的目标设备，例如 cuda:0 或 cpu；某些辅助类仅保存此值。
+
+    Returns:
+        RQVAE: 原地修改后的模型，初始 encoder 映射为恒等映射。
+    """
     logging.info(">>> [RQ-Kmeans+] Strategy: Applying Residual Connection & Warm-start...")
 
     if hasattr(model, 'encoder'):
@@ -88,6 +121,14 @@ def apply_rqkmeans_plus_strategy(model, codebook_path, device):
 
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser(description="RQ-KMeans+ Implementation")
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--epochs', type=int, default=5000, help='number of epochs')

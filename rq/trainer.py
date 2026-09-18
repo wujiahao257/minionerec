@@ -13,7 +13,25 @@ import os
 import heapq
 class Trainer(object):
 
+    """RQ-VAE 专用训练器，负责优化、碰撞率验证和 checkpoint 保留。
+
+    Args:
+        args (argparse.Namespace): 学习率、优化器、轮数、设备、调度器和 checkpoint 配置。
+        model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+        data_num (int): 每个 epoch 的 DataLoader batch 数，用来换算预热和总调度步数。
+    """
     def __init__(self, args, model, data_num):
+        """初始化 Trainer：RQ-VAE 专用训练器，负责优化、碰撞率验证和 checkpoint 保留。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            args (argparse.Namespace): 学习率、优化器、轮数、设备、调度器和 checkpoint 配置。
+            model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+            data_num (int): 每个 epoch 的 DataLoader batch 数，用来换算预热和总调度步数。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         self.args = args
         self.model = model
         self.logger = logging.getLogger()
@@ -48,6 +66,14 @@ class Trainer(object):
 
     def _build_optimizer(self):
 
+        """根据 learner、学习率和权重衰减为量化模型创建优化器。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            torch.optim.Optimizer: Adam、SGD、Adagrad、RMSprop 或 AdamW 实例。
+        """
         params = self.model.parameters()
         learner =  self.learner
         learning_rate = self.lr
@@ -81,6 +107,14 @@ class Trainer(object):
         return optimizer
 
     def _get_scheduler(self):
+        """创建带预热的线性或常数学习率调度器。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            torch.optim.lr_scheduler.LambdaLR: 与当前优化器绑定的调度器。
+        """
         if self.lr_scheduler_type.lower() == "linear":
             lr_scheduler = get_linear_schedule_with_warmup(optimizer=self.optimizer,
                                                            num_warmup_steps=self.warmup_steps,
@@ -91,12 +125,31 @@ class Trainer(object):
 
         return lr_scheduler
     def _check_nan(self, loss):
+        """检查损失是否为 NaN，发现异常时抛出 ValueError 中止训练。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            loss (torch.Tensor): 零维损失 Tensor；quant_loss 为各层量化损失的平均值。
+
+        Returns:
+            None: 合法损失直接通过。
+        """
         if torch.isnan(loss):
             raise ValueError("Training loss is nan")
 
 
     def _train_epoch(self, train_data, epoch_idx):
 
+        """遍历商品向量 batch，计算重建与量化损失，反传、裁剪梯度并更新参数。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            train_data (torch.utils.data.DataLoader): 逐批提供商品向量 [B,D] 的数据加载器；验证阶段用来统计代码碰撞。
+            epoch_idx (int): 当前训练轮次，从 0 开始。
+
+        Returns:
+            tuple[float, float]: 本轮累计总 loss 和累计重建 loss。
+        """
         self.model.train()
 
         total_loss = 0
@@ -127,6 +180,15 @@ class Trainer(object):
     @torch.no_grad()
     def _valid_epoch(self, valid_data):
 
+        """在不求梯度时提取商品代码，统计完整代码碰撞率。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            valid_data (torch.utils.data.DataLoader): 逐批提供商品向量 [B,D] 的数据加载器；验证阶段用来统计代码碰撞。
+
+        Returns:
+            float: (商品数-唯一代码数)/商品数。
+        """
         self.model.eval()
 
         iter_data =tqdm(
@@ -153,6 +215,17 @@ class Trainer(object):
 
     def _save_checkpoint(self, epoch, collision_rate=1, ckpt_file=None):
 
+        """保存训练参数、模型 state_dict、优化器和最佳指标。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            epoch (int): 当前训练轮次，从 0 开始。
+            collision_rate (float): 当前代码碰撞率，用于 checkpoint 命名和记录。
+            ckpt_file (str | None): checkpoint 文件名；None 时根据 epoch 和碰撞率自动生成。
+
+        Returns:
+            str: 已写出的 checkpoint 路径。
+        """
         ckpt_path = os.path.join(self.ckpt_dir,ckpt_file) if ckpt_file \
             else os.path.join(self.ckpt_dir, 'epoch_%d_collision_%.4f_model.pth' % (epoch, collision_rate))
         state = {
@@ -172,6 +245,19 @@ class Trainer(object):
         return ckpt_path
 
     def _generate_train_loss_output(self, epoch_idx, s_time, e_time, loss, recon_loss):
+        """将轮次、耗时、总损失与重建损失格式化为彩色训练日志。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            epoch_idx (int): 当前训练轮次，从 0 开始。
+            s_time (float): 当前训练轮次开始时的 Unix 时间，单位秒。
+            e_time (float): 当前训练轮次结束时的 Unix 时间，单位秒，与 s_time 相减得到耗时。
+            loss (float): 当前训练轮次累计的总损失值，用于日志。
+            recon_loss (float): 本轮累计的重建损失，供日志格式化。
+
+        Returns:
+            str: 当前轮次的训练摘要。
+        """
         train_loss_output = (
             set_color("epoch %d training", "green")
             + " ["
@@ -186,6 +272,15 @@ class Trainer(object):
 
     def fit(self, data):
 
+        """多轮训练 RQ-VAE，定期统计碰撞率，并按最佳指标和队列策略保存 checkpoint。
+
+        Args:
+            self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            data (torch.utils.data.DataLoader): 商品向量 DataLoader，同时用于训练和代码碰撞率验证。
+
+        Returns:
+            tuple[float, float]: 最佳训练累计 loss 和最佳碰撞率。
+        """
         cur_eval_step = 0
 
         for epoch_idx in range(self.epochs):

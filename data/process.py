@@ -11,9 +11,34 @@ import os
     
 
 def get_timestamp_start(year, month):
+    """把指定月份第一天的本地时间转换为秒级 Unix 时间戳。
+
+    Args:
+        year (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        month (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+
+    Returns:
+        int: 当月第一天零点对应的时间戳。
+    """
     return int(datetime.datetime(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
 
 def gao(category, metadata=None, reviews=None, K=5, st_year=2017, st_month=10, ed_year=2018, ed_month=11, output=True):
+    """旧版标题数据处理入口：过滤交互、重编号、构造历史窗口并按时间写出 CSV。
+
+    Args:
+        category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
+        metadata (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        K (int): 每层聚类中心数量；数据预处理函数中表示用户和商品的最小交互次数。
+        st_year (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        st_month (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        ed_year (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        ed_month (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        output (bool): 是否继续写交互 CSV；旧处理入口在判断它之前已经写了 info 文件。
+
+    Returns:
+        None: 写出 info 和可选 train/valid/test 文件。
+    """
     if st_year < 1996:
         return
     start_timestamp = get_timestamp_start(st_year, st_month)

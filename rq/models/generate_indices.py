@@ -16,17 +16,41 @@ from models.rqvae import RQVAE
 import os
 
 def check_collision(all_indices_str):
+    """检查所有完整代码是否唯一；函数名虽含 collision，True 表示没有碰撞。
+
+    Args:
+        all_indices_str (numpy.ndarray): 每件商品完整量化代码的字符串数组，shape [N]，用于统计碰撞。
+
+    Returns:
+        bool: 商品数量等于唯一代码数量时为 True。
+    """
     tot_item = len(all_indices_str)
     tot_indice = len(set(all_indices_str.tolist()))
     return tot_item==tot_indice
 
 def get_indices_count(all_indices_str):
+    """统计每个完整代码出现的商品数。
+
+    Args:
+        all_indices_str (numpy.ndarray): 每件商品完整量化代码的字符串数组，shape [N]，用于统计碰撞。
+
+    Returns:
+        dict[str, int]: 完整代码到出现次数的映射。
+    """
     indices_count = collections.defaultdict(int)
     for index in all_indices_str:
         indices_count[index] += 1
     return indices_count
 
 def get_collision_item(all_indices_str):
+    """按完整代码分组，找出包含多个商品的冲突组。
+
+    Args:
+        all_indices_str (numpy.ndarray): 每件商品完整量化代码的字符串数组，shape [N]，用于统计碰撞。
+
+    Returns:
+        list[list[int]]: 每个冲突组内商品的数组行号。
+    """
     index2id = {}
     for i, index in enumerate(all_indices_str):
         if index not in index2id:

@@ -21,6 +21,17 @@ import threading
 
 def get_res_batch(model_name, prompt_list, max_tokens, api_info):
 
+    """按 provider 分发到 OpenAI、DeepSeek 或 MiniMax 的批量文本请求实现。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt_list (list[str]): 批量请求的输入文本，返回结果按请求提交顺序排列。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+
+    Returns:
+        list[str] | None: 各 prompt 的回复；OpenAI 分支异常时可能返回 None。
+    """
     provider = api_info.get("provider", "openai")
 
     if provider == "deepseek":
@@ -32,6 +43,17 @@ def get_res_batch(model_name, prompt_list, max_tokens, api_info):
 
 
 def get_openai_batch(model_name, prompt_list, max_tokens, api_info):
+    """调用旧版 OpenAI Completion 批量接口，按异常类型重试或切换 key。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt_list (list[str]): 批量请求的输入文本，返回结果按请求提交顺序排列。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+
+    Returns:
+        list[str] | None: 回复文本；未处理的一般异常返回 None。
+    """
     while True:
         try:
             res = openai.Completion.create(
@@ -83,6 +105,17 @@ def get_openai_batch(model_name, prompt_list, max_tokens, api_info):
 
 
 def get_deepseek_batch(model_name, prompt_list, max_tokens, api_info):
+    """用线程池并发请求文本服务，按提交顺序收集回复，失败条目回退为空字符串。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt_list (list[str]): 批量请求的输入文本，返回结果按请求提交顺序排列。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+
+    Returns:
+        list[str]: 与 prompt_list 顺序对应的回复列表。
+    """
     base_url = api_info.get("base_url", "https://api.deepseek.com")
     
     max_workers = min(256, len(prompt_list)) 
@@ -109,6 +142,19 @@ def get_deepseek_batch(model_name, prompt_list, max_tokens, api_info):
 
 
 def _single_deepseek_request(model_name, prompt, max_tokens, api_info, base_url, request_id):
+    """发送一次 DeepSeek chat 请求，遇限流或错误时最多尝试三次。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt (str): 待编码或包装为请求模板的文本。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+        base_url (str): 兼容 chat/completions 接口的服务根地址。
+        request_id (int): 批量请求中的序号，用于日志标识及错峰延时。
+
+    Returns:
+        str: 回复文本，重试耗尽返回空字符串。
+    """
     api_key = api_info["api_key_list"][-1]
     
     headers = {
@@ -176,6 +222,17 @@ def _single_deepseek_request(model_name, prompt, max_tokens, api_info, base_url,
 
 
 def get_minimax_batch(model_name, prompt_list, max_tokens, api_info):
+    """用线程池并发请求文本服务，按提交顺序收集回复，失败条目回退为空字符串。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt_list (list[str]): 批量请求的输入文本，返回结果按请求提交顺序排列。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+
+    Returns:
+        list[str]: 与 prompt_list 顺序对应的回复列表。
+    """
     if not prompt_list:
         return []
 
@@ -205,6 +262,19 @@ def get_minimax_batch(model_name, prompt_list, max_tokens, api_info):
 
 
 def _single_minimax_request(model_name, prompt, max_tokens, api_info, base_url, request_id):
+    """发送 MiniMax chat 请求，限制温度并清理 think 标签，失败时重试。
+
+    Args:
+        model_name (str): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+        prompt (str): 待编码或包装为请求模板的文本。
+        max_tokens (int): 每个外部文本生成请求的最大输出 token 数。
+        api_info (dict[str, object]): API 配置，包含 provider、api_key_list，可选 base_url、temperature；不得记录真实密钥。
+        base_url (str): 兼容 chat/completions 接口的服务根地址。
+        request_id (int): 批量请求中的序号，用于日志标识及错峰延时。
+
+    Returns:
+        str: 清理后的回复，重试耗尽返回空字符串。
+    """
     api_key = api_info["api_key_list"][-1]
 
     headers = {
@@ -274,11 +344,27 @@ def _single_minimax_request(model_name, prompt, max_tokens, api_info, base_url, 
 
 
 def check_path(path):
+    """在目录不存在时创建目录，供后续数据或 checkpoint 写入。
+
+    Args:
+        path (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 在文件系统中创建目录。
+    """
     if not os.path.exists(path):
         os.makedirs(path)
 
 
 def set_device(gpu_id):
+    """按设备编号与 CUDA 可用性选择计算设备。
+
+    Args:
+        gpu_id (int): CUDA 设备编号；-1 或 CUDA 不可用时选择 CPU。
+
+    Returns:
+        torch.device: CPU 或指定 CUDA 设备。
+    """
     if gpu_id == -1:
         return torch.device('cpu')
     else:
@@ -287,6 +373,14 @@ def set_device(gpu_id):
 
 def load_plm(model_path='bert-base-uncased'):
 
+    """从指定 checkpoint 加载 tokenizer 与 AutoModel 文本编码器。
+
+    Args:
+        model_path (str): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+
+    Returns:
+        tuple[transformers.PreTrainedTokenizerBase, transformers.PreTrainedModel]: 分词器和模型。
+    """
     tokenizer = AutoTokenizer.from_pretrained(model_path,)
 
     print("Load Model:", model_path)
@@ -295,11 +389,27 @@ def load_plm(model_path='bert-base-uncased'):
     return tokenizer, model
 
 def load_json(file):
+    """读取并解析一个 JSON 文件。
+
+    Args:
+        file (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        dict | list: 文件保存的 JSON 数据结构。
+    """
     with open(file, 'r') as f:
         data = json.load(f)
     return data
 
 def clean_text(raw_text):
+    """清理元数据文本，列表拼接、移除 HTML/引号换行、补句号，并丢弃过长文本。
+
+    Args:
+        raw_text (str | list[str] | dict): 待清洗元数据；列表合并、移除 HTML 和换行，过长结果会被置空。
+
+    Returns:
+        str: 清洗后的文本，长度达到 2000 时返回空字符串。
+    """
     if isinstance(raw_text, list):
         new_raw_text=[]
         for raw in raw_text:
@@ -329,11 +439,27 @@ def clean_text(raw_text):
     return cleaned_text
 
 def load_pickle(filename):
+    """从指定文件反序列化 pickle 对象。
+
+    Args:
+        filename (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        object: 文件保存的 Python 对象。
+    """
     with open(filename, "rb") as f:
         return pickle.load(f)
 
 
 def make_inters_in_order(inters):
+    """按用户分组，再按时间升序排列各用户交互。
+
+    Args:
+        inters (list[tuple[str, str, float, int]]): 用户、商品、评分、时间组成的交互元组列表。
+
+    Returns:
+        list[tuple]: 同用户交互连续且用户内时间有序的记录。
+    """
     user2inters, new_inters = collections.defaultdict(list), list()
     for inter in inters:
         user, item, rating, timestamp = inter
@@ -346,11 +472,29 @@ def make_inters_in_order(inters):
     return new_inters
 
 def write_json_file(dic, file):
+    """把数据序列化为 JSON 文件。
+
+    Args:
+        dic (dict): 待序列化并写入 JSON 的映射。
+        file (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 写入指定文件。
+    """
     print('Writing json file: ',file)
     with open(file, 'w') as fp:
         json.dump(dic, fp, indent=4)
 
 def write_remap_index(unit2index, file):
+    """逐行写出原始用户或商品标识与连续整数编号的对应关系。
+
+    Args:
+        unit2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        file (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 写入制表符分隔的映射文件。
+    """
     print('Writing remap file: ',file)
     with open(file, 'w') as fp:
         for unit in unit2index:

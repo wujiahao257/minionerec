@@ -13,15 +13,46 @@ from models.rqvae import RQVAE
 
 
 class ResidualEncoderWrapper(nn.Module):
+    """为已有编码器增加恒等残差连接，输出 x + MLP(x)。
+
+    Args:
+        original_encoder (torch.nn.Module): 原有 MLP 编码器；包装后计算 x + encoder(x)，输入输出末维必须相同。
+    """
     def __init__(self, original_encoder):
+        """初始化 ResidualEncoderWrapper：为已有编码器增加恒等残差连接，输出 x + MLP(x)。
+
+        Args:
+            self (ResidualEncoderWrapper): 当前实例，由 Python 在调用实例方法时自动传入。
+            original_encoder (torch.nn.Module): 原有 MLP 编码器；包装后计算 x + encoder(x)，输入输出末维必须相同。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super().__init__()
         self.mlp = original_encoder
 
     def forward(self, x):
+        """计算输入与 MLP 输出之和，实现残差编码。
+
+        Args:
+            self (ResidualEncoderWrapper): 当前实例，由 Python 在调用实例方法时自动传入。
+            x (torch.Tensor): 原始向量 [B,D]，encoder 输出末维必须仍为 D 才能残差相加。
+
+        Returns:
+            torch.Tensor: 与输入同形状的 [B,D] 表示。
+        """
         return x + self.mlp(x)
 
 def deal_with_deduplicate(df):
 
+    """对重复完整代码追加组内序号，使不同商品得到可区分的完整路径。
+
+    Args:
+        df (polars.DataFrame): 包含 codes 列的代码表，每行是一个商品的多层整数代码。
+
+    Returns:
+        polars.DataFrame: codes 列已追加消歧层的表。
+    """
     df_with_index = df.with_row_index()
 
     result_df = df_with_index.with_columns(
@@ -38,6 +69,15 @@ def deal_with_deduplicate(df):
     return result_df
 
 def load_model(args, dim):
+    """构造带残差编码器的 RQVAE，并从 checkpoint 加载权重用于提取代码。
+
+    Args:
+        args (argparse.Namespace): 向量与 checkpoint 路径、模型维度、设备和 batch 配置。
+        dim (int): 商品连续向量的特征维度 D。
+
+    Returns:
+        RQVAE: 已置为 eval 模式的模型。
+    """
     print(f"Building model with e_dim={args.e_dim} (Must match input dim {dim})...")
     
     model = RQVAE(in_dim=dim,
@@ -81,6 +121,14 @@ def load_model(args, dim):
     return model
 
 def generate_sids(args):
+    """加载商品向量与 plus 模型，提取代码、加一偏移、追加冲突序号并导出 SID JSON。
+
+    Args:
+        args (argparse.Namespace): 向量与 checkpoint 路径、模型维度、设备和 batch 配置。
+
+    Returns:
+        None: 在向量文件目录写出同数据集名的 index.json。
+    """
     print(f"Loading dataset from {args.data_path}")
     dataset = EmbDataset(args.data_path)
     
@@ -150,6 +198,14 @@ def generate_sids(args):
     analyze_duplication(codes_df)
 
 def analyze_duplication(codes_df):
+    """按完整代码分组并打印碰撞组统计；唯一数打印公式不等于一般情况下的精确去重数。
+
+    Args:
+        codes_df (polars.DataFrame): 包含 codes 列的代码表，每行是一个商品的多层整数代码。
+
+    Returns:
+        None: 输出统计日志。
+    """
     codes_str = codes_df.with_columns(
         pl.col("codes").map_elements(lambda x: ','.join(map(str, x)), return_dtype=pl.Utf8).alias("codes_str")
     )
@@ -167,6 +223,14 @@ def analyze_duplication(codes_df):
         print(" - No Collisions.")
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--data_path", type=str, required=True, help="Path to .npy embeddings")

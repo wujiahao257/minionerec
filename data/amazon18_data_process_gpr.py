@@ -13,7 +13,14 @@ import numpy as np
 
 
 def clean_text(text):
-    """Clean text by removing HTML tags and excessive whitespace"""
+    """将元数据转为文本，移除 HTML、解码实体并压缩多余空白。
+
+    Args:
+        text (str | list | None): 原始元数据文本；清洗函数先转成字符串并去除 HTML/多余空白。
+
+    Returns:
+        str: 清洗后的文本，空输入返回空字符串。
+    """
     if not text:
         return ""
     # Remove HTML tags
@@ -28,18 +35,41 @@ def clean_text(text):
 
 
 def check_path(path):
-    """Create directory if it doesn't exist"""
+    """在目录不存在时创建目录，供后续数据或 checkpoint 写入。
+
+    Args:
+        path (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 在文件系统中创建目录。
+    """
     os.makedirs(path, exist_ok=True)
 
 
 def write_json_file(data, file_path):
-    """Write data to JSON file"""
+    """把数据序列化为 JSON 文件。
+
+    Args:
+        data (dict | list): 可 JSON 序列化的评论、商品特征或交互数据。
+        file_path (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 写入指定文件。
+    """
     with open(file_path, 'w') as f:
         json.dump(data, f, indent=2)
 
 
 def write_remap_index(index_map, file_path):
-    """Write index mapping to file"""
+    """逐行写出原始用户或商品标识与连续整数编号的对应关系。
+
+    Args:
+        index_map (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        file_path (str): 当前读写操作使用的文件或目录路径。
+
+    Returns:
+        None: 写入制表符分隔的映射文件。
+    """
     with open(file_path, 'w') as f:
         for original, mapped in index_map.items():
             f.write(f"{original}\t{mapped}\n")
@@ -56,12 +86,28 @@ amazon18_dataset2fullname = {
 
 
 def get_timestamp_start(year, month):
-    """Get timestamp for the start of a given year and month"""
+    """把指定月份第一天的本地时间转换为秒级 Unix 时间戳。
+
+    Args:
+        year (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+        month (int): 日历年份或月份；起止月份按该月第一天零点转换成时间边界。
+
+    Returns:
+        int: 当月第一天零点对应的时间戳。
+    """
     return int(datetime.datetime(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
 
 
 def load_metadata_json2csv_style(category, metadata_file=None):
-    """Load metadata using json2csv style processing"""
+    """读取 Amazon18 元数据，过滤异常或过长标题并建立 ASIN 到标题映射。
+
+    Args:
+        category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
+        metadata_file (str | None): 原始商品元数据或评论 JSON/JSONL 路径；Amazon18 可用 None 选择约定文件名。
+
+    Returns:
+        tuple[list[dict], dict[str, str], set[str]]: 原始元数据、合法标题映射、待排除商品集合。
+    """
     if metadata_file is None:
         metadata_file = f'../meta_{category}.json'
     
@@ -94,7 +140,17 @@ def load_metadata_json2csv_style(category, metadata_file=None):
 
 
 def load_reviews_json2csv_style(category, reviews_file=None, start_timestamp=None, end_timestamp=None):
-    """Load reviews using json2csv style processing"""
+    """读取 Amazon18 评论 JSON 行；时间筛选留给后续 K-core 阶段。
+
+    Args:
+        category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
+        reviews_file (str | None): 原始商品元数据或评论 JSON/JSONL 路径；Amazon18 可用 None 选择约定文件名。
+        start_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+        end_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+
+    Returns:
+        list[dict]: 评论记录，找不到输入文件时返回空列表。
+    """
     if reviews_file is None:
         try:
             with open(f'../{category}_5.json') as f:
@@ -119,7 +175,18 @@ def load_reviews_json2csv_style(category, reviews_file=None, start_timestamp=Non
 
 
 def k_core_filtering_json2csv_style(reviews, id_title, K=5, start_timestamp=None, end_timestamp=None):
-    """Perform k-core filtering using json2csv style logic"""
+    """按时间和有效标题过滤交互，反复移除不足 K 次交互的用户和商品。
+
+    Args:
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        id_title (dict[str, str]): 原始商品 ASIN/parent_asin 到清洗后标题的映射。
+        K (int): 每层聚类中心数量；数据预处理函数中表示用户和商品的最小交互次数。
+        start_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+        end_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+
+    Returns:
+        tuple[list[dict], dict[str, int], dict[str, int]]: 保留评论、用户交互数、商品交互数。
+    """
     remove_users = set()
     remove_items = set()
     
@@ -178,7 +245,14 @@ def k_core_filtering_json2csv_style(reviews, id_title, K=5, start_timestamp=None
 
 
 def convert_inters2dict_amazon18_style(reviews):
-    """Convert interactions to dict format like amazon18_data_process"""
+    """按用户时间排序并给用户和商品连续编号，保留重复交互。
+
+    Args:
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+
+    Returns:
+        tuple[dict, dict[str, int], dict[str, int], list[tuple]]: 用户编号到商品序列、用户映射、商品映射、交互元组。
+    """
     user2items = collections.defaultdict(list)
     user2index, item2index = dict(), dict()
     
@@ -216,7 +290,17 @@ def convert_inters2dict_amazon18_style(reviews):
 
 
 def generate_interaction_list_json2csv_style(reviews, user2index, item2index, id_title):
-    """Generate interaction list like json2csv for 8:1:1 split"""
+    """对每个用户构造最多 10 条历史的下一商品样本，再按目标时间全局排序。
+
+    Args:
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        user2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        item2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        id_title (dict[str, str]): 原始商品 ASIN/parent_asin 到清洗后标题的映射。
+
+    Returns:
+        list[list[object]]: 历史窗口记录；GPR 版本还附加随机上下文 token。
+    """
     # Create user interactions similar to json2csv
     interact = dict()
     item2id = {item: idx for item, idx in item2index.items()}
@@ -284,7 +368,16 @@ def generate_interaction_list_json2csv_style(reviews, user2index, item2index, id
 
 
 def convert_to_atomic_files_json2csv_style(args, interaction_list, user2index):
-    """Convert interaction list to train/valid/test files using 8:1:1 split like json2csv"""
+    """按已排序样本的 80%/10%/10% 切分，写出训练、验证和测试原子交互文件。
+
+    Args:
+        args (argparse.Namespace): dataset、output_path、时间范围和数据清洗参数。
+        interaction_list (list[list[object]]): 按目标时间排序的历史窗口记录；包含历史、目标、评分和时间，GPR 还追加上下文。
+        user2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+
+    Returns:
+        tuple[list, list, list]: train、valid、test 交互记录。
+    """
     print('Convert dataset: ')
     print(' Dataset: ', args.dataset)
     
@@ -350,7 +443,16 @@ def convert_to_atomic_files_json2csv_style(args, interaction_list, user2index):
 
 
 def load_review_data_amazon18_style(reviews, user2index, item2index):
-    """Load review data like amazon18_data_process"""
+    """按用户编号、商品编号和时间构建评论文本字典。
+
+    Args:
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        user2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        item2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+
+    Returns:
+        dict[str, dict[str, object]]: 以三元组字符串为键的评论与摘要等信息。
+    """
     review_data = {}
     
     for review in tqdm(reviews, desc='Load reviews'):
@@ -388,7 +490,17 @@ def load_review_data_amazon18_style(reviews, user2index, item2index):
 
 
 def create_item_features_amazon18_style(metadata, item2index, id_title, item_counts):
-    """Create item features like amazon18_data_process"""
+    """把保留商品的元数据映射到连续商品编号；GPR 版本还构造模拟类型和价值。
+
+    Args:
+        metadata (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        item2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        id_title (dict[str, str]): 原始商品 ASIN/parent_asin 到清洗后标题的映射。
+        item_counts (dict[str, int]): 过滤后每个原始商品的交互次数，参与模拟价值计算。
+
+    Returns:
+        dict[int, dict[str, object]]: 商品标题、描述、品牌、类别等特征。
+    """
     item2feature = collections.defaultdict(dict)
     
     # Create a mapping from asin to metadata
@@ -474,7 +586,17 @@ def create_item_features_amazon18_style(metadata, item2index, id_title, item_cou
 
 
 def create_user_features(reviews, user2index, output_path, dataset_name):
-    """Create user features (U-Token)"""
+    """按平均评分给用户分配高/中/低评分 token，并写出原始用户标识到 token 的映射。
+
+    Args:
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        user2index (dict[str, int]): 原始用户或商品标识到连续整数编号的映射。
+        output_path (str): 当前读写操作使用的文件或目录路径。
+        dataset_name (str): 数据集名称，用来拼接数据文件名或标记结果。
+
+    Returns:
+        dict[str, str]: 原始 reviewerID 到用户特征 token 的映射。
+    """
     user_features = {}
     user_ratings = collections.defaultdict(list)
     
@@ -499,7 +621,18 @@ def create_user_features(reviews, user2index, output_path, dataset_name):
 
 
 def process_dataset_recursive(args, metadata, reviews, start_timestamp, end_timestamp):
-    """Process dataset with recursive year reduction like json2csv"""
+    """加载元数据并过滤交互，商品不足 3000 时逐年向前扩展起始时间。
+
+    Args:
+        args (argparse.Namespace): dataset、output_path、时间范围和数据清洗参数。
+        metadata (list[dict] | None): 传入的元数据列表；当前函数会重新从文件加载并覆盖此参数。
+        reviews (list[dict[str, object]] | None): 原始评论或商品元数据记录列表；具体字段遵循对应 Amazon 数据版本。
+        start_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+        end_timestamp (int | None): 以秒为单位的时间筛选边界；筛选函数在两端都提供时应用区间过滤。
+
+    Returns:
+        tuple[list, dict, dict, list, dict] | None: 保留评论、用户计数、商品计数、元数据、标题映射；无元数据时返回 None。
+    """
     
     # Load metadata 
     metadata, id_title, remove_items = load_metadata_json2csv_style(
@@ -532,6 +665,14 @@ def process_dataset_recursive(args, metadata, reviews, start_timestamp, end_time
 
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='Arts', help='Instruments / Arts / Games / Sports')
     parser.add_argument('--user_k', type=int, default=5, help='user k-core filtering')

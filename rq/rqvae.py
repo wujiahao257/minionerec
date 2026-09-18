@@ -12,6 +12,14 @@ from models.rqvae import RQVAE
 from trainer import  Trainer
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser(description="Index")
 
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')

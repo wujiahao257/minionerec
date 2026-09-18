@@ -10,6 +10,15 @@ import numpy as np
     
 from tqdm import tqdm
 def gao(path, item_path):
+    """读取预测 SID，统计 Top-K 命中率、NDCG 及扫描到的无效 SID 数。
+
+    Args:
+        path (str | list[str]): 一个或多个预测 JSON 路径；当前多文件循环共享累计状态，默认 Shell 使用单文件。
+        item_path (str): 商品目录 TXT 路径，首列为 SID，后续列为标题与商品 ID；用于约束或合法性检查。
+
+    Returns:
+        None: 打印离线评测指标。
+    """
     if type(path) != list:
         path = [path]
     if item_path.endswith(".txt"):

@@ -24,7 +24,19 @@ except ImportError:
 
 
 def balanced_kmeans_level_constrained(X, K, max_iter=100, tol=1e-7, random_state=None, verbose=False):
-    """Balanced K-means implemented with k-means-constrained"""
+    """对单层向量执行带簇容量上下界的 KMeans，限制码本使用不均衡。
+
+    Args:
+        X (numpy.ndarray): 待聚类或计算距离的浮点向量矩阵，shape [N,D] 或一个批次 [B,D]。
+        K (int): 每层聚类中心数量；数据预处理函数中表示用户和商品的最小交互次数。
+        max_iter (int): KMeans 优化的最大迭代次数。
+        tol (float): KMeans 收敛容差。
+        random_state (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+        verbose (bool): 是否打印聚类、编码或统计过程的详细信息。
+
+    Returns:
+        tuple[numpy.ndarray, numpy.ndarray]: 标签 [N] 与中心 [K,D]。
+    """
     start_time = time.time()
     n, d = X.shape
     X = X.astype(np.float32, copy=False)
@@ -65,22 +77,19 @@ def balanced_kmeans_level_constrained(X, K, max_iter=100, tol=1e-7, random_state
 
 
 def residual_kmeans_constrained(X, K, L, max_iter=300, tol=1e-4, random_state=None, verbose=False):
-    """
-    Residual K-means with constrained balanced clustering
+    """逐层聚类当前残差并减去选中中心，得到多层代码与重建向量。
 
     Args:
-        X: Input data (N, d)
-        K: Number of clusters per level (int or list)
-        L: Number of levels
-        max_iter: Maximum iterations for K-means
-        tol: Convergence tolerance
-        random_state: Random seed
-        verbose: Print detailed info
+        X (numpy.ndarray): 待聚类或计算距离的浮点向量矩阵，shape [N,D] 或一个批次 [B,D]。
+        K (int | list[int]): 每层码本大小；单个整数会重复 L 次，列表长度需为 L。
+        L (int): 残差量化层数，每层产生一个整数代码。
+        max_iter (int): KMeans 优化的最大迭代次数。
+        tol (float): KMeans 收敛容差。
+        random_state (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+        verbose (bool): 是否打印聚类、编码或统计过程的详细信息。
 
     Returns:
-        codes_all: (L, N) integer codes for each level
-        codebooks: List of L codebooks, each (K, d)
-        recon: Reconstructed data (N, d)
+        tuple[numpy.ndarray, list[numpy.ndarray], numpy.ndarray]: codes [L,N]、各层码本 [K_l,D]、重建 [N,D]。
     """
     total_start = time.time()
     n, d = X.shape
@@ -129,7 +138,14 @@ def residual_kmeans_constrained(X, K, L, max_iter=300, tol=1e-4, random_state=No
 
 
 def deal_with_deduplicate(df):
-    """Handle duplicates by appending row index"""
+    """对重复完整代码追加组内序号，使不同商品得到可区分的完整路径。
+
+    Args:
+        df (polars.DataFrame): 包含 codes 列的代码表，每行是一个商品的多层整数代码。
+
+    Returns:
+        polars.DataFrame: codes 列已追加消歧层的表。
+    """
     df_with_index = df.with_row_index()
 
     result_df = df_with_index.with_columns(
@@ -147,7 +163,16 @@ def deal_with_deduplicate(df):
 
 
 def analyze_codes(codes, title="", verbose=True):
-    """Analyze code distribution and collision rate"""
+    """打印每层使用的码数和完整路径碰撞率。
+
+    Args:
+        codes (numpy.ndarray): 商品多层整数代码矩阵，通常 shape [N,M]；解包函数接收位打包字节矩阵。
+        title (str): 统计日志的标题，可为空字符串。
+        verbose (bool): 是否打印聚类、编码或统计过程的详细信息。
+
+    Returns:
+        None: 仅输出代码分布统计。
+    """
     N, M = codes.shape
     if verbose:
         if title:
@@ -166,6 +191,14 @@ def analyze_codes(codes, title="", verbose=True):
 
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser(description="Constrained RQ-KMeans clustering")
     parser.add_argument('--root', type=str, default="./data/Amazon", help="Root directory for data")
     parser.add_argument("--dataset", type=str, required=True, help="Dataset name (e.g., Industrial_and_Scientific)")

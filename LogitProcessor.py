@@ -23,6 +23,14 @@ LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
 
 class ConstrainedLogitsProcessor(LogitsProcessor):
 
+    """按目录 SID 的合法前缀屏蔽生成分数；内部 count 状态只适用于一次生成。
+
+    Args:
+        prefix_allowed_tokens_fn (Callable[[int, list[int]], list[int]]): 接收 batch 编号和前缀 token ID，返回合法后继 token ID 列表的回调。
+        num_beams (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+        base_model (str | None): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+        eos_token_id (int | None): 结束 token 的词表编号；无合法后继时用于强制结束序列。
+    """
     def __init__(
         self,
         prefix_allowed_tokens_fn: Callable[[int, torch.Tensor], List[int]],
@@ -30,6 +38,18 @@ class ConstrainedLogitsProcessor(LogitsProcessor):
         base_model: str = None,
         eos_token_id: int = None
     ):
+        """初始化 ConstrainedLogitsProcessor：按目录 SID 的合法前缀屏蔽生成分数；内部 count 状态只适用于一次生成。
+
+        Args:
+            self (ConstrainedLogitsProcessor): 当前实例，由 Python 在调用实例方法时自动传入。
+            prefix_allowed_tokens_fn (Callable[[int, list[int]], list[int]]): 接收 batch 编号和前缀 token ID，返回合法后继 token ID 列表的回调。
+            num_beams (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+            base_model (str | None): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+            eos_token_id (int | None): 结束 token 的词表编号；无合法后继时用于强制结束序列。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         self._prefix_allowed_tokens_fn = prefix_allowed_tokens_fn
         self._num_beams = num_beams
         self.count=0
@@ -43,6 +63,16 @@ class ConstrainedLogitsProcessor(LogitsProcessor):
     
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        """将不符合目录前缀的 token 分数设为负无穷，并推进当前生成步计数。
+
+        Args:
+            self (ConstrainedLogitsProcessor): 当前实例，由 Python 在调用实例方法时自动传入。
+            input_ids (torch.LongTensor): 已生成的完整序列，shape [B*num_beams,L]；从尾部提取当前前缀。
+            scores (torch.Tensor): 当前生成步的分数，shape [B*num_beams,V]，非法后继会被设为负无穷。
+
+        Returns:
+            torch.Tensor: shape [B*num_beams,V] 的受约束 log 分数。
+        """
         scores = torch.nn.functional.log_softmax(scores, dim=-1)
         mask = torch.full_like(scores, float('-inf'))
             

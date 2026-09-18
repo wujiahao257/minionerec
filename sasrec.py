@@ -23,6 +23,14 @@ logging.getLogger().setLevel(logging.INFO)
         
 
 def parse_args():
+    """解析当前脚本的命令行参数，返回后续数据或模型构造配置。
+
+    Args:
+        无显式参数。
+
+    Returns:
+        argparse.Namespace: 当前入口定义的参数集合。
+    """
     parser = argparse.ArgumentParser(description="Run supervised GRU.")
 
     parser.add_argument('--epoch', type=int, default=500,
@@ -74,6 +82,14 @@ def parse_args():
     return parser.parse_args()
 
 def setup_seed(seed):
+    """固定 Python、NumPy 或 PyTorch 随机状态，减少重复实验中的随机差异。
+
+    Args:
+        seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+
+    Returns:
+        None: 修改当前进程的随机状态和相关后端设置。
+    """
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.cuda.manual_seed(seed)
@@ -84,7 +100,27 @@ def setup_seed(seed):
 
 
 class GRU(nn.Module):
+    """以商品 Embedding 和 GRU 编码历史，再输出全商品分数的基线模型。
+
+    Args:
+        hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+        item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+        state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+        gru_layers (int): GRU 堆叠层数；当前输出整形最直接对应单层配置。
+    """
     def __init__(self, hidden_size, item_num, state_size, gru_layers=1):
+        """初始化 GRU：以商品 Embedding 和 GRU 编码历史，再输出全商品分数的基线模型。
+
+        Args:
+            self (GRU): 当前实例，由 Python 在调用实例方法时自动传入。
+            hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+            item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+            state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+            gru_layers (int): GRU 堆叠层数；当前输出整形最直接对应单层配置。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super(GRU, self).__init__()
         self.hidden_size = hidden_size
         self.item_num = item_num
@@ -104,6 +140,16 @@ class GRU(nn.Module):
 
     def forward(self, states, len_states):
         # Supervised Head
+        """对商品 Embedding 序列打包并用 GRU 编码，将最终隐藏状态映射为商品分数。
+
+        Args:
+            self (GRU): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 单层配置下 [B,N]；多层 hidden 被展平，输出行数会相应增加。
+        """
         emb = self.item_embeddings(states)
         emb_packed = torch.nn.utils.rnn.pack_padded_sequence(emb, len_states, batch_first=True, enforce_sorted=False)
         emb_packed, hidden = self.gru(emb_packed)
@@ -113,6 +159,16 @@ class GRU(nn.Module):
 
     def forward_eval(self, states, len_states):
         # Supervised Head
+        """对商品 Embedding 序列打包并用 GRU 编码，将最终隐藏状态映射为商品分数。
+
+        Args:
+            self (GRU): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 单层配置下 [B,N]；多层 hidden 被展平，输出行数会相应增加。
+        """
         emb = self.item_embeddings(states)
         emb_packed = torch.nn.utils.rnn.pack_padded_sequence(
             emb, len_states.cpu(), batch_first=True, enforce_sorted=False
@@ -125,8 +181,32 @@ class GRU(nn.Module):
 
 
 class Caser(nn.Module):
+    """以水平和垂直卷积聚合固定长度历史、输出全商品分数的基线模型。
+
+    Args:
+        hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+        item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+        state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+        num_filters (int): Caser 每种水平卷积窗口使用的卷积核数量。
+        filter_sizes (str): 水平卷积窗口高度列表的字符串，例如 [2,3,4]；构造器通过 eval 解析。
+        dropout_rate (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+    """
     def __init__(self, hidden_size, item_num, state_size, num_filters, filter_sizes,
                  dropout_rate):
+        """初始化 Caser：以水平和垂直卷积聚合固定长度历史、输出全商品分数的基线模型。
+
+        Args:
+            self (Caser): 当前实例，由 Python 在调用实例方法时自动传入。
+            hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+            item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+            state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+            num_filters (int): Caser 每种水平卷积窗口使用的卷积核数量。
+            filter_sizes (str): 水平卷积窗口高度列表的字符串，例如 [2,3,4]；构造器通过 eval 解析。
+            dropout_rate (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super(Caser, self).__init__()
         self.hidden_size = hidden_size
         self.item_num = int(item_num)
@@ -164,6 +244,16 @@ class Caser(nn.Module):
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def forward(self, states, len_states):
+        """用水平卷积加池化和垂直卷积提取历史特征，拼接后输出商品分数。
+
+        Args:
+            self (Caser): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 正常批量输入下 [B,N]；内部 squeeze 对单样本维度需额外留意。
+        """
         input_emb = self.item_embeddings(states)
         mask = torch.ne(states, self.item_num).float().unsqueeze(-1)
         input_emb *= mask
@@ -188,6 +278,16 @@ class Caser(nn.Module):
         return supervised_output
 
     def forward_eval(self, states, len_states):
+        """用水平卷积加池化和垂直卷积提取历史特征，拼接后输出商品分数。
+
+        Args:
+            self (Caser): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 正常批量输入下 [B,N]；内部 squeeze 对单样本维度需额外留意。
+        """
         input_emb = self.item_embeddings(states)
         mask = torch.ne(states, self.item_num).float().unsqueeze(-1)
         input_emb *= mask
@@ -212,7 +312,31 @@ class Caser(nn.Module):
         return supervised_output
 
 class SASRec(nn.Module):
+    """以位置 Embedding 和单个因果注意力模块编码历史的序列推荐基线。
+
+    Args:
+        hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+        item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+        state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+        dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+        device (str | torch.device | None): 张量或模型的目标设备，例如 cuda:0 或 cpu；某些辅助类仅保存此值。
+        num_heads (int): 注意力头数；隐藏维度必须能被它整除。
+    """
     def __init__(self, hidden_size, item_num, state_size, dropout, device, num_heads=1):
+        """初始化 SASRec：以位置 Embedding 和单个因果注意力模块编码历史的序列推荐基线。
+
+        Args:
+            self (SASRec): 当前实例，由 Python 在调用实例方法时自动传入。
+            hidden_size (int): 隐藏表示维度；基线中也是商品 Embedding 的宽度。
+            item_num (int): 真实商品总数 N；Embedding 的额外第 N 行用作 padding。
+            state_size (int): 固定历史序列宽度 S，用于 padding、位置 Embedding 或卷积窗口。
+            dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
+            device (str | torch.device | None): 张量或模型的目标设备，例如 cuda:0 或 cpu；某些辅助类仅保存此值。
+            num_heads (int): 注意力头数；隐藏维度必须能被它整除。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         super(SASRec, self).__init__()
         self.state_size = state_size
         self.hidden_size = hidden_size
@@ -240,6 +364,16 @@ class SASRec(nn.Module):
 
     def forward(self, states, len_states):
         # inputs_emb = self.item_embeddings(states) * self.item_embeddings.embedding_dim ** 0.5
+        """以商品和位置向量编码历史，经因果注意力和前馈后抽取最后有效位置预测商品。
+
+        Args:
+            self (SASRec): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 通常 [B,N]；无参数 squeeze 在 B=1 时会去掉 batch 维。
+        """
         inputs_emb = self.item_embeddings(states)
         inputs_emb += self.positional_embeddings(torch.arange(self.state_size).to(self.device))
         seq = self.emb_dropout(inputs_emb)
@@ -258,6 +392,16 @@ class SASRec(nn.Module):
 
     def forward_eval(self, states, len_states):
         # inputs_emb = self.item_embeddings(states) * self.item_embeddings.embedding_dim ** 0.5
+        """以商品和位置向量编码历史，经因果注意力和前馈后抽取最后有效位置预测商品。
+
+        Args:
+            self (SASRec): 当前实例，由 Python 在调用实例方法时自动传入。
+            states (torch.LongTensor): 商品编号序列，shape [B,S]，右侧用 item_num 对应的 padding 编号补齐。
+            len_states (torch.LongTensor): 每条序列的有效历史长度，shape [B]；用于 GRU 打包或定位最后有效位置。
+
+        Returns:
+            torch.Tensor: 通常 [B,N]；无参数 squeeze 在 B=1 时会去掉 batch 维。
+        """
         inputs_emb = self.item_embeddings(states)
         inputs_emb += self.positional_embeddings(torch.arange(self.state_size).to(self.device))
         seq = self.emb_dropout(inputs_emb)
@@ -277,7 +421,32 @@ class SASRec(nn.Module):
 
 def evaluate_games(model, test_data, device, topk, save_logits=False, eval_type="test"):
 
+    """对基线模型计算全商品排名与 HR/NDCG，可保存 logits；读取目录固定为测试目录。
+
+    Args:
+        model (torch.nn.Module): 提供 forward_eval 的 SASRec、GRU 或 Caser 基线，输出全商品分数。
+        test_data (str): 评测 CSV 文件名；当前函数使用 data_directory_test 拼接路径。
+        device (str | torch.device | None): 张量或模型的目标设备，例如 cuda:0 或 cpu；某些辅助类仅保存此值。
+        topk (list[int]): 需要统计的推荐截断位置，例如 [1,3,5,10,20]。
+        save_logits (bool): 是否保存 SASRec 的全商品预测分数到 NumPy 文件。
+        eval_type (str): 日志阶段标记，如 test 或 val；不改变当前函数固定的读取目录。
+
+    Returns:
+        tuple[float, list[float], list[float]]: 最大 K 的 NDCG、各 K 的 HR、各 K 的 NDCG。
+    """
     def calculate_hit_games_cuda(prediction, topk_list, target, hit_all, ndcg_all):
+        """在 GPU 上计算目标商品排名，累积各 K 的命中数和折扣增益。
+
+        Args:
+            prediction (torch.Tensor): 每条历史对所有商品的分数矩阵，shape [B,N]。
+            topk_list (list[int]): 需要统计的推荐截断位置，例如 [1,3,5,10,20]。
+            target (torch.LongTensor): 真实目标商品编号，shape [B]。
+            hit_all (list[float]): 按各个 K 累积的命中数或折扣增益，函数会原地更新。
+            ndcg_all (list[float]): 按各个 K 累积的命中数或折扣增益，函数会原地更新。
+
+        Returns:
+            tuple[list[float], list[float]]: 更新后的 hit_all 和 ndcg_all。
+        """
         rank_list = (prediction.shape[1] - 1 - torch.argsort(torch.argsort(prediction)))
         target_rank = torch.gather(rank_list, 1, target.view(-1, 1)).view(-1).clone()
         ndcg_temp_full = 1 / torch.log2(target_rank + 2)
@@ -399,6 +568,14 @@ def evaluate_games(model, test_data, device, topk, save_logits=False, eval_type=
 
 
 def calcu_propensity_score(buffer):
+    """对目标商品频次加一平滑、归一化，再取 0.05 次幂，供 DRO 项加权。
+
+    Args:
+        buffer (pandas.DataFrame): 基线训练表，包含 seq、len_seq、next 等列。
+
+    Returns:
+        numpy.ndarray: shape [item_num] 的平滑频率权重。
+    """
     items = list(buffer['next'])
     freq = Counter(items)
     for i in range(item_num):
@@ -412,10 +589,33 @@ def calcu_propensity_score(buffer):
     return ps
 
 class RecDataset(Dataset):
+    """为基线训练提供历史整数序列、有效长度和下一商品编号。
+
+    Args:
+        data_df (pandas.DataFrame): 基线训练表，包含 seq、len_seq、next 等列。
+    """
     def __init__(self, data_df):
+        """初始化 RecDataset：为基线训练提供历史整数序列、有效长度和下一商品编号。
+
+        Args:
+            self (RecDataset): 当前实例，由 Python 在调用实例方法时自动传入。
+            data_df (pandas.DataFrame): 基线训练表，包含 seq、len_seq、next 等列。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         self.data = data_df
 
     def __getitem__(self, i):
+        """取出基线的一条历史、长度和下一商品编号并转换为 Tensor。
+
+        Args:
+            self (RecDataset): 当前实例，由 Python 在调用实例方法时自动传入。
+            i (int): 样本在当前数据集中的位置索引，从 0 开始。
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor]: 序列 [S]、长度标量、目标标量。
+        """
         temp = self.data.iloc[i]
         seq = torch.tensor(temp['seq'])
         len_seq = torch.tensor(temp['len_seq'])
@@ -423,9 +623,28 @@ class RecDataset(Dataset):
         return seq, len_seq, next
 
     def __len__(self):
+        """返回底层数据记录数量。
+
+        Args:
+            self (RecDataset): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            int: 数据集样本数；部分去重缓存长度可能与原始记录数不同。
+        """
         return len(self.data)
 
 def main(topk, data_file_train, data_file_test, data_file_valid):
+    """训练所选 GRU/Caser/SASRec 基线，定期评测并保留验证指标最好的模型。
+
+    Args:
+        topk (list[int]): 需要统计的推荐截断位置，例如 [1,3,5,10,20]。
+        data_file_train (str): 对应训练、测试或验证交互 CSV 的文件名，由 main 与目录配置关联。
+        data_file_test (str): 对应训练、测试或验证交互 CSV 的文件名，由 main 与目录配置关联。
+        data_file_valid (str): 对应训练、测试或验证交互 CSV 的文件名，由 main 与目录配置关联。
+
+    Returns:
+        tuple[torch.nn.Module, list[float], list[float]]: 最佳模型及对应验证 NDCG、HR。
+    """
     if not args.debug:
         run = wandb.init(
             project="Rec",

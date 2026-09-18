@@ -78,26 +78,26 @@ RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
 
 
 class RepeatRandomSampler(Sampler):
-    """
-    Sampler that repeats the indices of a dataset N times.
+    """打乱数据集索引，并将每个索引连续重复指定次数以构成候选组。
 
     Args:
-        data_source (`Sized`):
-            Dataset to sample from.
-        repeat_count (`int`):
-            Number of times to repeat each index.
-        seed (`Optional[int]`):
-            Random seed for reproducibility (only affects this sampler).
-
-    Example:
-    ```python
-    >>> sampler = RepeatRandomSampler(["a", "b", "c", "d"], repeat_count=2)
-    >>> list(sampler)
-    [2, 2, 0, 0, 3, 3, 1, 1]
-    ```
+        data_source (collections.abc.Sized): 支持 len() 的样本集合，用于确定随机索引的取值范围。
+        repeat_count (int): 每个原始样本重复的次数；RL 中对应同一 prompt 的候选组大小。
+        seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
     """
 
     def __init__(self, data_source: Sized, repeat_count: int, seed: Optional[int] = None):
+        """初始化 RepeatRandomSampler：打乱数据集索引，并将每个索引连续重复指定次数以构成候选组。
+
+        Args:
+            self (RepeatRandomSampler): 当前实例，由 Python 在调用实例方法时自动传入。
+            data_source (collections.abc.Sized): 支持 len() 的样本集合，用于确定随机索引的取值范围。
+            repeat_count (int): 每个原始样本重复的次数；RL 中对应同一 prompt 的候选组大小。
+            seed (int | None): 随机种子；用于固定抽样、初始化或打乱顺序，None 表示不显式固定。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         self.data_source = data_source
         self.repeat_count = repeat_count
         self.num_samples = len(data_source)
@@ -107,6 +107,14 @@ class RepeatRandomSampler(Sampler):
             self.generator.manual_seed(seed)
 
     def __iter__(self):
+        """随机打乱原始样本索引，再连续重复每个索引以构成候选组。
+
+        Args:
+            self (RepeatRandomSampler): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            Iterator[int]: 重复展开后的样本位置迭代器。
+        """
         indexes = [
             idx
             for idx in torch.randperm(self.num_samples, generator=self.generator).tolist()
@@ -115,95 +123,43 @@ class RepeatRandomSampler(Sampler):
         return iter(indexes)
 
     def __len__(self):
+        """返回采样器输出的总索引数，包含每个样本的重复次数。
+
+        Args:
+            self (RepeatRandomSampler): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            int: 原始样本数乘 repeat_count。
+        """
         return self.num_samples * self.repeat_count
 
 
 class ReReTrainer(Trainer):
-    """
-    Trainer for the Group Relative Policy Optimization (GRPO) method adapted to recommendation. This algorithm was initially proposed in the
-    paper [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://huggingface.co/papers/2402.03300).
-
-    Example:
-
-    ```python
-    from datasets import load_dataset
-    from trl import GRPOTrainer
-
-    dataset = load_dataset("trl-lib/tldr", split="train")
-
-    def reward_func(completions, **kwargs):
-        # Dummy reward function that rewards completions with more unique letters.
-        return [float(len(set(completion))) for completion in completions]
-
-    trainer = GRPOTrainer(
-        model="Qwen/Qwen2-0.5B-Instruct",
-        reward_funcs=reward_func,
-        train_dataset=dataset,
-    )
-
-    trainer.train()
-    ```
+    """面向生成式推荐的 GRPO 风格训练器，连接受约束生成、组内奖励和策略优化。
 
     Args:
-        model (`Union[str, PreTrainedModel]`):
-            Model to be trained. Can be either:
-
-            - A string, being the *model id* of a pretrained model hosted inside a model repo on huggingface.co, or
-              a path to a *directory* containing model weights saved using
-              [`~transformers.PreTrainedModel.save_pretrained`], e.g., `'./my_model_directory/'`. The model is
-              loaded using [`~transformers.AutoModelForCausalLM.from_pretrained`] with the keywork arguments
-              in `args.model_init_kwargs`.
-            - A [`~transformers.PreTrainedModel`] object. Only causal language models are supported.
-        reward_funcs (`Union[RewardFunc, list[RewardFunc]]`):
-            Reward functions to be used for computing the rewards. To compute the rewards, we call all the reward
-            functions with the prompts and completions and sum the rewards. Can be either:
-
-            - A single reward function, such as:
-                - A string: The *model ID* of a pretrained model hosted inside a model repo on huggingface.co, or a
-                path to a *directory* containing model weights saved using
-                [`~transformers.PreTrainedModel.save_pretrained`], e.g., `'./my_model_directory/'`. The model is loaded
-                using [`~transformers.AutoModelForSequenceClassification.from_pretrained`] with `num_labels=1` and the
-                keyword arguments in `args.model_init_kwargs`.
-                - A [`~transformers.PreTrainedModel`] object: Only sequence classification models are supported.
-                - A custom reward function: The function is provided with the prompts and the generated completions,
-                  plus any additional columns in the dataset. It should return a list of rewards. For more details, see
-                  [Using a custom reward function](#using-a-custom-reward-function).
-            - A list of reward functions, where each item can independently be any of the above types. Mixing different
-            types within the list (e.g., a string model ID and a custom reward function) is allowed.
-        args ([`GRPOConfig`], *optional*, defaults to `None`):
-            Configuration for this trainer. If `None`, a default configuration is used.
-        train_dataset ([`~datasets.Dataset`] or [`~datasets.IterableDataset`]):
-            Dataset to use for training. It must include a column `"prompt"`. Any additional columns in the dataset is
-            ignored. The format of the samples can be either:
-
-            - [Standard](dataset_formats#standard): Each sample contains plain text.
-            - [Conversational](dataset_formats#conversational): Each sample contains structured messages (e.g., role
-              and content).
-        eval_dataset ([`~datasets.Dataset`], [`~datasets.IterableDataset`] or `dict[str, Union[Dataset, IterableDataset]]`):
-            Dataset to use for evaluation. It must meet the same requirements as `train_dataset`.
-        processing_class ([`~transformers.PreTrainedTokenizerBase`], *optional*, defaults to `None`):
-            Processing class used to process the data. The padding side must be set to "left". If `None`, the
-            processing class is loaded from the model's name with [`~transformers.AutoTokenizer.from_pretrained`].
-        reward_processing_classes (`Union[PreTrainedTokenizerBase, list[PreTrainedTokenizerBase]]`, *optional*, defaults to `None`):
-            Processing classes corresponding to the reward functions specified in `reward_funcs`. Can be either:
-
-            - A single processing class: Used when `reward_funcs` contains only one reward function.
-            - A list of processing classes: Must match the order and length of the reward functions in `reward_funcs`.
-            If set to `None`, or if an element of the list corresponding to a [`~transformers.PreTrainedModel`] is
-            `None`, the tokenizer for the model is automatically loaded using [`~transformers.AutoTokenizer.from_pretrained`].
-            For elements in `reward_funcs` that are custom reward functions (not [`~transformers.PreTrainedModel`]),
-            the corresponding entries in `reward_processing_classes` are ignored.
-        callbacks (list of [`~transformers.TrainerCallback`], *optional*, defaults to `None`):
-            List of callbacks to customize the training loop. Will add those to the list of default callbacks
-            detailed in [here](https://huggingface.co/docs/transformers/main_classes/callback).
-
-            If you want to remove one of the default callbacks used, use the [`~transformers.Trainer.remove_callback`]
-            method.
-        optimizers (`tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]`, *optional*, defaults to `(None, None)`):
-            A tuple containing the optimizer and the scheduler to use. Will default to an instance of [`AdamW`] on your
-            model and a scheduler given by [`get_linear_schedule_with_warmup`] controlled by `args`.
-        peft_config ([`~peft.PeftConfig`], *optional*, defaults to `None`):
-            PEFT configuration used to wrap the model. If `None`, the model is not wrapped.
+        model (str | transformers.PreTrainedModel): 待优化的因果语言模型或其 checkpoint；字符串会在构造时加载。
+        base_model (str): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+        reward_funcs (RewardFunc | list[RewardFunc]): 奖励函数、奖励模型或模型路径；多个奖励按配置权重相加。
+        args (trl.GRPOConfig | None): 训练、生成、奖励和分布式配置；None 时根据模型名创建默认配置。
+        add_gt (bool): 是否用真实答案替换部分生成候选；替换周期由当前实现的目标分组逻辑决定。
+        dynamic_sampling (bool): 是否在非 beam 分支多生成约 1.5 倍候选，再选择目标和较多样的结果。
+        beam_search (bool): 是否每组取一个 prompt 用多 beam 生成候选；当前训练配置仍开启 do_sample。
+        length_penalty (float): 生成器的序列长度惩罚系数；0 表示不额外按长度调整 beam 分数。
+        test_during_training (bool): 是否在准备 RL batch 时额外生成候选并统计 HR/NDCG；不是独立离线评测入口。
+        test_beam (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+        dapo (bool): 是否按所有有效 completion token 的总数归一化 RL loss。
+        gspo (bool): 是否使用序列平均 log-ratio 的损失变体；dapo=True 时优先执行 DAPO 分支。
+        info_file (str | None): 商品目录 TXT 路径，首列为 SID，后续列为标题与商品 ID；用于约束或合法性检查。
+        prompt2history (dict[str, str] | None): prompt 文本到历史或元数据查询键的映射，供奖励查找真实目标。
+        history2target (dict[str, str] | None): 历史或查询键到正确答案字符串的映射；重复键会覆盖。
+        train_dataset (datasets.Dataset | datasets.IterableDataset | None): 含 prompt 字段的训练集，供父类 Trainer 建立 DataLoader。
+        eval_dataset (datasets.Dataset | datasets.IterableDataset | dict[str, datasets.Dataset] | None): 含 prompt 字段的验证数据；具体方法按其接收的数据集类型处理。
+        processing_class (transformers.PreTrainedTokenizerBase | None): 策略模型的 tokenizer；None 时从 base_model 加载并设置左 padding。
+        reward_processing_classes (transformers.PreTrainedTokenizerBase | list | None): 神经奖励模型对应的 tokenizer；普通 Python 奖励函数不需要它。
+        callbacks (list[transformers.TrainerCallback] | None): 传给父类训练器的回调列表。
+        optimizers (tuple[torch.optim.Optimizer | None, torch.optim.lr_scheduler.LambdaLR | None]): 自定义优化器与调度器；空值交由父类 Trainer 创建。
+        peft_config (peft.PeftConfig | None): 可选参数高效微调配置；None 时不包装 PEFT 模型。
     """
 
     _tag_names = ["trl", "grpo"]
@@ -242,6 +198,36 @@ class ReReTrainer(Trainer):
         peft_config: Optional["PeftConfig"] = None,
     ):
         # Args
+        """初始化 ReReTrainer：面向生成式推荐的 GRPO 风格训练器，连接受约束生成、组内奖励和策略优化。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            model (str | transformers.PreTrainedModel): 待优化的因果语言模型或其 checkpoint；字符串会在构造时加载。
+            base_model (str): 模型 checkpoint 目录或模型标识；需要配套的模型配置、权重和 tokenizer。
+            reward_funcs (RewardFunc | list[RewardFunc]): 奖励函数、奖励模型或模型路径；多个奖励按配置权重相加。
+            args (trl.GRPOConfig | None): 训练、生成、奖励和分布式配置；None 时根据模型名创建默认配置。
+            add_gt (bool): 是否用真实答案替换部分生成候选；替换周期由当前实现的目标分组逻辑决定。
+            dynamic_sampling (bool): 是否在非 beam 分支多生成约 1.5 倍候选，再选择目标和较多样的结果。
+            beam_search (bool): 是否每组取一个 prompt 用多 beam 生成候选；当前训练配置仍开启 do_sample。
+            length_penalty (float): 生成器的序列长度惩罚系数；0 表示不额外按长度调整 beam 分数。
+            test_during_training (bool): 是否在准备 RL batch 时额外生成候选并统计 HR/NDCG；不是独立离线评测入口。
+            test_beam (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
+            dapo (bool): 是否按所有有效 completion token 的总数归一化 RL loss。
+            gspo (bool): 是否使用序列平均 log-ratio 的损失变体；dapo=True 时优先执行 DAPO 分支。
+            info_file (str | None): 商品目录 TXT 路径，首列为 SID，后续列为标题与商品 ID；用于约束或合法性检查。
+            prompt2history (dict[str, str] | None): prompt 文本到历史或元数据查询键的映射，供奖励查找真实目标。
+            history2target (dict[str, str] | None): 历史或查询键到正确答案字符串的映射；重复键会覆盖。
+            train_dataset (datasets.Dataset | datasets.IterableDataset | None): 含 prompt 字段的训练集，供父类 Trainer 建立 DataLoader。
+            eval_dataset (datasets.Dataset | datasets.IterableDataset | dict[str, datasets.Dataset] | None): 含 prompt 字段的验证数据；具体方法按其接收的数据集类型处理。
+            processing_class (transformers.PreTrainedTokenizerBase | None): 策略模型的 tokenizer；None 时从 base_model 加载并设置左 padding。
+            reward_processing_classes (transformers.PreTrainedTokenizerBase | list | None): 神经奖励模型对应的 tokenizer；普通 Python 奖励函数不需要它。
+            callbacks (list[transformers.TrainerCallback] | None): 传给父类训练器的回调列表。
+            optimizers (tuple[torch.optim.Optimizer | None, torch.optim.lr_scheduler.LambdaLR | None]): 自定义优化器与调度器；空值交由父类 Trainer 创建。
+            peft_config (peft.PeftConfig | None): 可选参数高效微调配置；None 时不包装 PEFT 模型。
+
+        Returns:
+            None: 完成实例初始化。
+        """
         if args is None:
             model_name = model if isinstance(model, str) else model.config._name_or_path
             model_name = model_name.split("/")[-1]
@@ -341,6 +327,14 @@ class ReReTrainer(Trainer):
 
         # Data collator
         def data_collator(features):  # No data collation is needed in GRPO
+            """原样返回 RL 样本列表，将 tokenization 延迟到 _prepare_inputs。
+
+            Args:
+                features (list[dict[str, object]]): 当前 RL batch 的原始样本；不在 collator 中进行 padding。
+
+            Returns:
+                list[dict[str, object]]: 输入样本列表本身。
+            """
             return features
 
         # Training arguments
@@ -582,10 +576,29 @@ class ReReTrainer(Trainer):
                                                             eos_token_id=self.processing_class.eos_token_id,)
 
     def get_hash(self, x):
+            """将 token ID 转成字符串并用连字符连接，作为前缀查表键。
+
+            Args:
+                self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+                x (list[int] | torch.Tensor): 需要转换为查表键的 token ID 序列。
+
+            Returns:
+                str: 确定性的前缀键，不是密码学哈希。
+            """
             x = [str(_) for _ in x]
             return '-'.join(x)
 
     def prefix_allowed_tokens_fn(self, batch_id, input_ids):
+            """根据当前前缀查找允许生成的下一个 token。
+
+            Args:
+                self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+                batch_id (int): 生成器当前请求在 batch 中的编号；目录约束对所有请求共享同一查表。
+                input_ids (list[int]): 当前回答前缀的 token ID，用于查询共享合法后继表。
+
+            Returns:
+                list[int]: 合法后继 token ID；找不到前缀时返回空列表。
+            """
             hash_number = self.get_hash(input_ids)
             if hash_number in self.hash_dict:
                 return self.hash_dict[hash_number]
@@ -596,6 +609,14 @@ class ReReTrainer(Trainer):
         # By default, this method sets `self._signature_columns` to the model's expected inputs.
         # In GRPOTrainer, we preprocess data, so using the model's signature columns doesn't work.
         # Instead, we set them to the columns expected by the `training_step` method, hence the override.
+        """将 Trainer 保留的数据列限定为 prompt，避免按 LLM forward 签名误删文本输入。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            None: 更新 self._signature_columns。
+        """
         if self._signature_columns is None:
             self._signature_columns = ["prompt"]
 
@@ -612,6 +633,15 @@ class ReReTrainer(Trainer):
         # identical prompts are distributed to different GPUs, allowing rewards to be computed and normalized correctly
         # within each prompt group. Using the same seed across processes ensures consistent prompt assignment,
         # preventing discrepancies in group formation.
+        """构造每条 prompt 连续重复 num_generations 次的训练随机采样器。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            train_dataset (datasets.Dataset | datasets.IterableDataset | None): 含 prompt 字段的训练集，供父类 Trainer 建立 DataLoader。
+
+        Returns:
+            RepeatRandomSampler: 使用 self.train_dataset 的分组采样器。
+        """
         if train_dataset is None:
             train_dataset = self.train_dataset
         return RepeatRandomSampler(self.train_dataset, self.num_generations, seed=self.args.seed)
@@ -621,11 +651,32 @@ class ReReTrainer(Trainer):
         # identical prompts are distributed to different GPUs, allowing rewards to be computed and normalized correctly
         # within each prompt group. Using the same seed across processes ensures consistent prompt assignment,
         # preventing discrepancies in group formation.
+        """构造验证集的重复随机采样器，以形成组内奖励比较样本。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            eval_dataset (datasets.Dataset | datasets.IterableDataset | dict[str, datasets.Dataset] | None): 含 prompt 字段的验证数据；具体方法按其接收的数据集类型处理。
+
+        Returns:
+            RepeatRandomSampler: 对传入验证集重复索引的采样器。
+        """
         return RepeatRandomSampler(eval_dataset, self.num_generations, seed=self.args.seed)
 
     # Get the per-token log probabilities for the completions for the model and the reference model
     def _get_per_token_logps(self, model, input_ids, attention_mask, logits_to_keep):
         # We add 1 to `logits_to_keep` because the last logits of the sequence is later excluded
+        """调用语言模型并移位 logits，只取实际 completion token 的对数概率。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            model (transformers.PreTrainedModel): 当前因果语言模型，输入 token 和 mask，输出词表 logits；loss 路径需要梯度。
+            input_ids (torch.LongTensor): prompt 与 completion 拼接的 token ID，shape [B,P+C]。
+            attention_mask (torch.Tensor): shape [B,P+C] 的有效位置掩码；1 为有效 token，0 为 padding。
+            logits_to_keep (int): 需要计算 log probability 的 completion token 数 C，forward 会额外请求一位以便移位。
+
+        Returns:
+            torch.Tensor: shape [B,C]，C=logits_to_keep。
+        """
         logits = model(input_ids=input_ids, attention_mask=attention_mask, logits_to_keep=logits_to_keep + 1).logits
         logits = logits[:, :-1, :]  # (B, L-1, V), exclude the last logit: it corresponds to the next token pred
 
@@ -636,6 +687,14 @@ class ReReTrainer(Trainer):
         return selective_log_softmax(logits, input_ids)  #  compute logprobs for the input tokens
 
     def _move_model_to_vllm(self):
+        """提取当前策略权重，必要时合并 PEFT adapter，再加载进 vLLM 执行模型。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+
+        Returns:
+            None: 更新 vLLM 权重；当前文件的 vLLM 导入未启用。
+        """
         with unwrap_model_for_generation(
             self.model, self.accelerator, gather_deepspeed3_params=self.args.ds3_gather_for_generation
         ) as unwrapped_model:
@@ -663,6 +722,15 @@ class ReReTrainer(Trainer):
             llm_model = self.llm.llm_engine.model_executor.driver_worker.model_runner.model
             llm_model.load_weights(state_dict.items())
     def _prepare_inputs(self, inputs: dict[str, Union[torch.Tensor, Any]]) -> dict[str, Union[torch.Tensor, Any]]:
+        """生成候选，构造 EOS 掩码，计算参考概率、奖励和组内标准化优势。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            inputs (list[dict[str, object]]): RL 原始 batch 的样本列表，每项包含 prompt；原有 _prepare_inputs 类型标注与实际调用形式不同。
+
+        Returns:
+            dict[str, torch.Tensor]: prompt_ids/mask [B,P]、completion_ids/mask 与 ref_per_token_logps [B,C]、advantages 与 sliced_rewards [B]。
+        """
         device = self.accelerator.device
         prompts = [x["prompt"] for x in inputs]
 
@@ -818,6 +886,15 @@ class ReReTrainer(Trainer):
                         # print(f"extended_completions_text: {extended_completions_text}")
 
                         def select_completion(completions, target):
+                            """优先保留目标答案，再按出现频次和多样性选择固定组大小的候选。
+
+                            Args:
+                                completions (list[str]): 模型生成的候选答案文本，与 prompts 或当前选择组顺序一致。
+                                target (str): 当前候选组对应的真实答案文本。
+
+                            Returns:
+                                list[str]: 长度为 num_generations 的候选组。
+                            """
                             from collections import Counter
                             selected = []
                             completion_times = Counter(completions)
@@ -1033,6 +1110,18 @@ class ReReTrainer(Trainer):
     
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        """计算生成 token 的策略梯度项与参考 KL，按默认、DAPO 或 GSPO 分支归一化。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            model (transformers.PreTrainedModel): 当前因果语言模型，输入 token 和 mask，输出词表 logits；loss 路径需要梯度。
+            inputs (dict[str, torch.Tensor]): 准备后的 RL batch，含 prompt/completion 的 ID 和 mask、reference logps 与 advantages。
+            return_outputs (bool): 是否连同 loss 返回模型输出；ReReTrainer 不支持 True，VAFT 支持该模式。
+            num_items_in_batch (int | torch.Tensor | None): 父类 Trainer 传入的批内计数兼容参数；当前自定义 loss 未用它归一化。
+
+        Returns:
+            torch.Tensor: 可反向传播的标量 RL loss。
+        """
         if return_outputs:
             raise ValueError("The GRPOTrainer does not support returning outputs")
 
@@ -1073,6 +1162,18 @@ class ReReTrainer(Trainer):
         return loss
 
     def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys: Optional[list[str]] = None):
+        """准备 RL 生成批次，在不求梯度的上下文中计算验证 loss。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            model (transformers.PreTrainedModel): 当前因果语言模型，输入 token 和 mask，输出词表 logits；loss 路径需要梯度。
+            inputs (list[dict[str, object]]): RL 原始 batch 的样本列表，每项包含 prompt；原有 _prepare_inputs 类型标注与实际调用形式不同。
+            prediction_loss_only (bool): 父类预测接口兼容标志；此实现始终只返回 loss，预测值和标签返回 None。
+            ignore_keys (list[str] | None): 父类预测接口的忽略字段参数；当前实现不读取此参数。
+
+        Returns:
+            tuple[torch.Tensor, None, None]: 平均验证 loss，不返回预测 logits 或标签。
+        """
         inputs = self._prepare_inputs(inputs)
         with torch.no_grad():
             with self.compute_loss_context_manager():
@@ -1081,6 +1182,16 @@ class ReReTrainer(Trainer):
         return loss, None, None
 
     def log(self, logs: dict[str, float], start_time: Optional[float] = None) -> None:
+        """将缓存的奖励、KL、长度等指标取均值，合并到父类日志后清空缓存。
+
+        Args:
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            logs (dict[str, float]): 父类生成的日志，本方法会合并缓存指标均值后交回父类。
+            start_time (float | None): 训练开始时间，较新 Transformers 的 log 接口需要转发此值。
+
+        Returns:
+            None: 向父类训练器提交日志。
+        """
         metrics = {key: sum(val) / len(val) for key, val in self._metrics.items()}  # average the metrics
 
         # This method can be called both in training and evaluation. When called in evaluation, the keys in `logs`
@@ -1101,16 +1212,16 @@ class ReReTrainer(Trainer):
         dataset_name: Optional[str] = None,
         tags: Union[str, list[str], None] = None,
     ):
-        """
-        Creates a draft of a model card using the information available to the `Trainer`.
+        """在主进程创建包含模型、数据集和训练引用信息的 README 模型卡。
 
         Args:
-            model_name (`str` or `None`, *optional*, defaults to `None`):
-                Name of the model.
-            dataset_name (`str` or `None`, *optional*, defaults to `None`):
-                Name of the dataset used for training.
-            tags (`str`, `list[str]` or `None`, *optional*, defaults to `None`):
-                Tags to be associated with the model card.
+            self (ReReTrainer): 当前实例，由 Python 在调用实例方法时自动传入。
+            model_name (str | None): 文本 API 接收的模型名称，或写入模型卡的显示名称。
+            dataset_name (str | None): 数据集名称，用来拼接数据文件名或标记结果。
+            tags (str | list[str] | None): 模型卡标签，字符串会转换为单元素列表。
+
+        Returns:
+            None: 在训练输出目录写 README.md。
         """
         if not self.is_world_process_zero():
             return
