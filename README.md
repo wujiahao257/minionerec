@@ -366,3 +366,26 @@ get_res_batch("MiniMax-M2.7", prompt_list, max_tokens=512, api_info=api_info)
 <div align="center">
 欢迎社区贡献！🤝
 </div>
+
+---
+
+## 📚 按训练时间顺序阅读源码
+
+建议沿着“上一步生成什么文件、下一步如何使用它”的顺序阅读。下面以 **RQ-VAE 构建 SID → SFT → 可选 RL → 离线评测** 为主线；其他量化方案是替代路线，不需要全部依次训练。
+
+| 顺序 | 优先阅读的文件夹 | 关键文件与阅读顺序 | 这一阶段要弄懂什么 |
+| --- | --- | --- | --- |
+| 1. 原始数据预处理 | [minionerec/preprocessing/](minionerec/preprocessing/) | `amazon18.py`；使用 Amazon23 时改读 `amazon23.py` | 如何过滤用户和商品、按时间排列行为、构造历史与下一商品样本，以及划分训练、验证、测试集。产物包括交互 `.inter` 和商品元数据 `.item.json`。 |
+| 2. 商品文本转向量 | [rq/text2emb/](rq/text2emb/) | `amazon_text2emb.py` → `utils.py` 中的文本清洗函数 | 商品标题和描述怎样变成文本编码器输入，再经隐藏状态池化得到商品向量 `.npy`。这里提取向量，不训练推荐 LLM。 |
+| 3. 训练 SID 量化模型 | [rq/](rq/) → [rq/models/](rq/models/) | `rqvae.py` → `datasets.py` → `trainer.py` → `models/rqvae.py` → `models/rq.py` → `models/vq.py`；MLP 细节看 `models/layers.py` | 商品向量如何经过 Dataset/DataLoader、编码器、残差量化和解码器；重建损失与量化损失如何驱动训练，并保存 checkpoint。 |
+| 4. 导出 SID 并转换数据 | [rq/](rq/) → [minionerec/preprocessing/](minionerec/preprocessing/) | `rq/generate_indices.py` → `minionerec/preprocessing/convert_dataset.py` | 如何从量化 checkpoint 导出商品 SID 索引，再将索引、商品元数据和交互关联，得到推荐训练用的 CSV 与商品目录。导出脚本中的路径需要配置。 |
+| 5. 准备 SFT 样本 | [scripts/](scripts/) → [minionerec/training/](minionerec/training/) → [minionerec/datasets/](minionerec/datasets/) | `scripts/sft.sh` → `training/sft.py::train` → `datasets/recommendation.py` 中的 `SidSFTDataset`、`SidItemFeatDataset`、`FusionSeqRecDataset` | 先看入口如何加载模型、扩充 SID 词表和构造数据集，再追踪历史行为如何变成 prompt、目标商品如何变成 label，以及为什么用 `-100` 屏蔽 prompt 的监督。 |
+| 6. 执行 SFT 训练 | [minionerec/training/](minionerec/training/) | 回到 `sft.py`，继续看数据整理器、`TrainingArguments`、`Trainer` 和 `trainer.train()` | 样本怎样组成 batch，模型怎样预测下一个 token、计算 loss 并更新参数。主线 CausalLM 的 Transformer、forward 和语言模型 loss 来自外部 Transformers 模型实现，不在本仓库重新定义。 |
+| 7. 推荐强化学习（可选） | [scripts/](scripts/) → [minionerec/training/](minionerec/training/) → [minionerec/datasets/](minionerec/datasets/) | `scripts/rl.sh` → `training/rl.py` → `datasets/recommendation.py` 中的 RL 数据集 → `training/trainer.py::ReReTrainer` | SFT 模型怎样生成一组候选、获得奖励、计算组内优势，再通过策略损失与参考 KL 更新模型。重点读 `_prepare_inputs`、`_get_per_token_logps` 和 `compute_loss`。 |
+| 8. 推理与离线评测 | [minionerec/evaluation/](minionerec/evaluation/) | 先看 `scripts/evaluate.sh`，再依次读 `split.py` → `evaluate.py` → `logits_processor.py` → `merge.py` → `metrics.py` | 如何输入用户历史、逐 token 约束 SID 生成、得到候选推荐并计算 HR/NDCG。样本构造还需回看 `datasets/recommendation.py` 中的 `EvalSidDataset`。 |
+
+**第一遍可以暂缓阅读：** `minionerec/experiments/` 是 GPR、TS 等实验分支；`minionerec/models/` 主要是 SASRec 等传统推荐基线，并非主线 LLM 的实现，使用 SASRec 奖励时再深入。`tests/` 可用于对照输入输出，`config/` 可在阅读分布式启动参数时查阅。
+
+`data/` 和 `ts_rec_data/` 存放数据，可以打开少量样本对照代码，但它们不是训练逻辑目录。如果直接使用仓库已有 SID 与 CSV，可以从第 5 步开始；想理解完整训练流程，则从第 1 步顺读。
+
+更细的函数调用顺序见 [按训练时间顺序读源码](docs/08_按训练时间顺序读源码.md)，新旧文件路径对照见 [目录迁移与遗留代码检查](docs/09_目录迁移与遗留代码检查.md)。
