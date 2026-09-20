@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_v2/metaFiles2/meta_Industrial_and_Scientific.json.gz",
+    "archive_bytes": 83745299,
+    "json_bytes": 637363336,
+    "file": "meta_Industrial_and_Scientific.json"
+  },
+  {
+    "url": "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_v2/categoryFilesSmall/Industrial_and_Scientific_5.json.gz",
+    "archive_bytes": 11003495,
+    "json_bytes": 38877308,
+    "file": "Industrial_and_Scientific_5.json"
+  },
+  {
+    "url": "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_v2/metaFiles2/meta_Office_Products.json.gz",
+    "archive_bytes": 514243589,
+    "json_bytes": 5228772212,
+    "file": "meta_Office_Products.json"
+  },
+  {
+    "url": "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_v2/categoryFilesSmall/Office_Products_5.json.gz",
+    "archive_bytes": 111785349,
+    "json_bytes": 407586718,
+    "file": "Office_Products_5.json"
+  }
+]

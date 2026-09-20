@@ -7,9 +7,7 @@ import os
 import random
 import re
 import datetime
-import torch
 from tqdm import tqdm
-import numpy as np
 
 
 def clean_text(text):
@@ -98,12 +96,13 @@ def get_timestamp_start(year, month):
     return int(datetime.datetime(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0).timestamp())
 
 
-def load_metadata_json2csv_style(category, metadata_file=None):
+def load_metadata_json2csv_style(category, metadata_file=None, item_asins=None):
     """读取 Amazon18 元数据，过滤异常或过长标题并建立 ASIN 到标题映射。
 
     Args:
         category (str): 商品领域名称，用于数据路径、输出命名或任务提示语，具体由当前入口决定。
         metadata_file (str | None): 原始商品元数据或评论 JSON/JSONL 路径；Amazon18 可用 None 选择约定文件名。
+        item_asins (set[str] | None): 仅保留这些交互商品的元数据；None 时读取全部商品。逐行解析，避免保存无关商品。
 
     Returns:
         tuple[list[dict], dict[str, str], set[str]]: 原始元数据、合法标题映射、待排除商品集合。
@@ -113,8 +112,11 @@ def load_metadata_json2csv_style(category, metadata_file=None):
     
     metadata = []
     try:
-        with open(metadata_file) as f:
-            metadata = [json.loads(line) for line in f]
+        with open(metadata_file, encoding="utf-8") as f:
+            for line in f:
+                item = json.loads(line)
+                if item_asins is None or item.get("asin") in item_asins:
+                    metadata.append(item)
     except FileNotFoundError:
         print(f"Metadata file {metadata_file} not found")
         return [], {}, set()
@@ -558,7 +560,7 @@ def process_dataset_recursive(args, metadata, reviews, start_timestamp, end_time
     
     # Load metadata 
     metadata, id_title, remove_items = load_metadata_json2csv_style(
-        args.dataset, args.metadata_file
+        args.dataset, args.metadata_file, item_asins={review['asin'] for review in reviews}
     )
     
     if not metadata:

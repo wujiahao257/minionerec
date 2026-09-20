@@ -2,3 +2,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# 本地预处理环境、下载文件和重新生成的数据
+.venv-preprocess/
+data/raw/*
+!data/raw/README.md
+!data/raw/download_manifest.json
+!data/raw/Industrial_and_Scientific_5.json
+!data/raw/Office_Products_5.json
+!data/raw/meta_Industrial_and_Scientific.json
+data/Amazon18/
