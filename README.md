@@ -389,3 +389,8 @@ get_res_batch("MiniMax-M2.7", prompt_list, max_tokens=512, api_info=api_info)
 `data/` 和 `ts_rec_data/` 存放数据，可以打开少量样本对照代码，但它们不是训练逻辑目录。如果直接使用仓库已有 SID 与 CSV，可以从第 5 步开始；想理解完整训练流程，则从第 1 步顺读。
 
 更细的函数调用顺序见 [按训练时间顺序读源码](docs/08_按训练时间顺序读源码.md)，新旧文件路径对照见 [目录迁移与遗留代码检查](docs/09_目录迁移与遗留代码检查.md)。
+
+
+## MiniOneRec + SIM 精排（新增）
+
+MiniOneRec 生成候选商品，SIM 从用户长历史检索相关行为，再通过注意力模型重排候选。模型、数据准备、训练、推理和测试集中在 [minionerec/sim/](minionerec/sim/README.md)。这是新增的学习实现，完整流程、长历史数据要求与论文实现差异见该目录说明。

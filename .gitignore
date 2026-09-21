@@ -12,3 +12,6 @@ data/raw/*
 !data/raw/Office_Products_5.json
 !data/raw/meta_Industrial_and_Scientific.json
 data/Amazon18/
+
+# SIM 本地候选、训练权重与评测产物
+runs/sim/

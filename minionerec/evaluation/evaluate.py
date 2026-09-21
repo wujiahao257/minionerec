@@ -3,6 +3,7 @@ import pandas as pd
 import fire
 import torch
 import json
+import ast
 import os
 from transformers import GenerationConfig,  AutoTokenizer, BitsAndBytesConfig, AutoModelForCausalLM, LogitsProcessorList, TemperatureLogitsWarper
 from minionerec.datasets.recommendation import  EvalD3Dataset, EvalSidDataset
@@ -219,7 +220,7 @@ def main(
             kwargs (dict[str, object]): 额外传给 GenerationConfig 的生成参数，避免与显式参数重复。
 
         Returns:
-            list[list[str]]: 每条输入对应 num_beams 个候选 SID 字符串。
+            tuple[list[list[str]], list[list[float | None]]]: 分组 SID 与 beam 分数。
         """
         maxLen = max([len(_["input_ids"]) for _ in encodings])
 
@@ -282,12 +283,16 @@ def main(
             
         output = [_.split("Response:\n")[-1].strip() for _ in output]
         real_outputs = [output[i * num_beams: (i + 1) * num_beams] for i in range(len(output) // num_beams)]
-        return real_outputs
+        sequence_scores = getattr(generation_output, 'sequences_scores', None)
+        scores = sequence_scores.float().cpu().tolist() if sequence_scores is not None else [None] * len(output)
+        real_scores = [scores[i * num_beams: (i + 1) * num_beams] for i in range(len(real_outputs))]
+        return real_outputs, real_scores
     
     model = model.to(device)
 
     from tqdm import tqdm
     outputs = []
+    recall_scores = []
     new_encodings = []
     BLOCK = (len(encodings) + batch_size - 1) // batch_size
     for i in range(BLOCK):
@@ -296,17 +301,28 @@ def main(
     
     for idx, encodings in enumerate(tqdm(new_encodings)):
         # Use standard evaluation
-        output = evaluate(encodings, max_new_tokens=max_new_tokens, num_beams=num_beams, length_penalty=length_penalty)
+        output, scores = evaluate(encodings, max_new_tokens=max_new_tokens, num_beams=num_beams, length_penalty=length_penalty)
         
         outputs = outputs + output
+        recall_scores.extend(scores)
        
     for i, test in enumerate(test_data):
         test["predict"] = outputs[i]
+        test["predict_scores"] = recall_scores[i]
+        # 保留原始样本身份，精排无需通过文本猜测商品编号或依赖合并后的行号。
+        row = val_dataset.data.iloc[i]
+        test["user_id"] = str(row["user_id"])
+        history = row["history_item_id"]
+        test["history_item_id"] = [int(x) for x in (ast.literal_eval(history) if isinstance(history, str) else history)]
+        test["item_id"] = int(row["item_id"])
+        if "history_end" in row and pd.notna(row["history_end"]):
+            test["history_end"] = int(row["history_end"])
   
 
     for i in range(len(test_data)):
         if 'dedup' in test_data[i]:
             test_data[i].pop('dedup')  
+    os.makedirs(os.path.dirname(os.path.abspath(result_json_data)), exist_ok=True)
     with open(result_json_data, 'w') as f:
         json.dump(test_data, f, indent=4)
 

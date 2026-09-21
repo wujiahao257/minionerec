@@ -92,7 +92,7 @@ class TestRepositoryLayout(unittest.TestCase):
         Args:
             self (TestRepositoryLayout): 当前测试实例。
         """
-        for path in [ROOT / 'README.md', *(ROOT / 'docs').glob('*.md')]:
+        for path in [ROOT / 'README.md', *(ROOT / 'docs').glob('*.md'), ROOT / 'minionerec/sim/README.md']:
             # 英文 README 是原根目录文件的逐字备份，链接仍以原位置解析。
             link_base = ROOT if path.name == 'README_EN.md' else path.parent
             for link in re.findall(r'\]\(([^)]+)\)', path.read_text(encoding='utf-8')):
