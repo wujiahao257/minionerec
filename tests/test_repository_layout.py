@@ -93,12 +93,14 @@ class TestRepositoryLayout(unittest.TestCase):
             self (TestRepositoryLayout): 当前测试实例。
         """
         for path in [ROOT / 'README.md', *(ROOT / 'docs').glob('*.md')]:
+            # 英文 README 是原根目录文件的逐字备份，链接仍以原位置解析。
+            link_base = ROOT if path.name == 'README_EN.md' else path.parent
             for link in re.findall(r'\]\(([^)]+)\)', path.read_text(encoding='utf-8')):
                 if link.startswith(('https:', 'http:', '#', 'mailto:')):
                     continue
                 target = link.split('#')[0]
                 with self.subTest(document=path.name, target=target):
-                    self.assertTrue((path.parent / target).exists(), target)
+                    self.assertTrue((link_base / target).exists(), target)
 
     def test_root_has_no_python_or_shell_entries(self):
         """防止根目录重新出现重复的代码或启动入口。

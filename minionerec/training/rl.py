@@ -8,7 +8,6 @@ from torch.utils.data import ConcatDataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from minionerec.training.trainer import ReReTrainer
-from minionerec.models.sasrec import SASRec
 from fire import Fire
 import pickle
 import math
@@ -69,7 +68,6 @@ def train(
     reward_type: str = "rule",
     sample_train: bool = False,
     ada_path: str = "",
-    cf_path: str = "",
     sid_index_path: str = "",
     item_meta_path: str = "",
     dapo: bool = False,
@@ -103,10 +101,9 @@ def train(
         mask_all_zero (bool): 预留的全零奖励屏蔽开关；当前入口没有把它接入训练器。
         sync_ref_model (bool): 是否注册参考模型同步回调，使 reference 随训练按配置更新。
         test_beam (int): beam 搜索宽度；相应生成配置通常返回同样数量的候选序列。
-        reward_type (str): 奖励选项：rule、ranking、ranking_only、semantic 或 sasrec，决定传给 Trainer 的评分函数。
+        reward_type (str): 奖励选项：rule、ranking、ranking_only 或 semantic，决定传给 Trainer 的评分函数。
         sample_train (bool): 若启用且模型路径含 sft，则保留打乱后训练数据的后 80%。
         ada_path (str): semantic 奖励使用的商品向量 pickle 路径，行序必须与 info 商品编号一致。
-        cf_path (str): SASRec 奖励模型 state_dict 的路径，结构和商品编号需与当前目录匹配。
         sid_index_path (str): 商品 ID 到各层 SID token 列表的 JSON 文件路径。
         item_meta_path (str): 商品元数据 JSON 路径，键为商品 ID 字符串，值含 title、description 等字段。
         dapo (bool): 是否按所有有效 completion token 的总数归一化 RL loss。
@@ -115,6 +112,12 @@ def train(
     Returns:
         None: 在 output_dir 及 final_checkpoint 中保存训练产物。
     """
+    supported_rewards = ("rule", "ranking", "ranking_only", "semantic")
+    if reward_type not in supported_rewards:
+        raise ValueError(
+            f"Unsupported reward_type={reward_type!r}. Choose one of {supported_rewards}."
+        )
+
     torch.backends.cuda.enable_flash_sdp(False)  
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     set_seed(seed)
@@ -182,18 +185,11 @@ def train(
     print("eval_dataset: ", eval_dataset)
 
     llm_model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch.bfloat16, device_map="auto")
-    device = llm_model.device
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     
-    len_seq = 10
     item_num = len(item_name)
     print(f"item_num: {item_num}")
 
-    if reward_type == "sasrec":
-        model = SASRec(32, item_num, len_seq, 0.3, device)
-        model.to(device)
-        model.load_state_dict(torch.load(cf_path))
-        model.eval()
     if reward_type == "semantic":
         with open(ada_path, "rb") as f:
             item_ada_embd = pickle.load(f)
@@ -287,49 +283,6 @@ def train(
         print(rewards)
         return rewards
 
-    def cf_reward(prompts, completions):
-        """用 SASRec 读取历史并取生成商品的预测分数作为奖励。
-
-        Args:
-            prompts (list[str]): 候选对应的输入文本；相同 prompt 连续重复以组成奖励比较组。
-            completions (list[str]): 模型生成的候选答案文本，与 prompts 或当前选择组顺序一致。
-
-        Returns:
-            torch.Tensor: shape [B] 的候选分数；历史和商品编号需与基线一致。
-        """
-        history = [prompt2history[prompt] for prompt in prompts]
-        history_list = [elm.split("::") for elm in history]
-        pred_ids = []
-        for i, elm in enumerate(completions):
-            elm = elm.strip("\n\"")
-            if elm not in item_name:
-                # print("========Invalid Item========")
-                # print(f"Invalid item: {elm}")
-                # print(f"Prompt: {prompts[i]}")
-                # print("============================")
-                pred_ids.append(random.randint(0, item_num-1))
-            else:
-                pred_ids.append(item2id[elm])
-        
-        len_lis = []
-        history_ids = []
-        for his in history_list:
-            his = [item2id[elm] for elm in his]
-            len_lis.append(len(his))
-            if len(his) < len_seq: 
-                his = his + [item_num] * (len_seq - len(his))
-            history_ids.append(his)
-        
-        seq = torch.LongTensor(history_ids).to(device)
-        pred = torch.LongTensor(pred_ids).to(device)    
-        
-        with torch.no_grad():
-            predictions = model.forward_eval(seq, torch.tensor(np.array(len_lis)).to(device))
-            scores = torch.gather(predictions, 1,  pred.view(-1, 1)).view(-1)
-        return scores
-    
-
-
     if reward_type == "rule":
         reward_fun = rule_reward
     elif reward_type == "ranking":
@@ -338,8 +291,6 @@ def train(
         reward_fun = ndcg_rule_reward
     elif reward_type == "semantic":
         reward_fun = semantic_reward
-    elif reward_type == "sasrec":
-        reward_fun = cf_reward
     
     os.environ['WANDB_PROJECT'] = wandb_project
     os.environ["WANDB_MODE"] = "offline"

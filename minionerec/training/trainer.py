@@ -549,7 +549,6 @@ class ReReTrainer(Trainer):
             prefix_index = 3
             
         self.hash_dict = dict()
-        # sasrec_dict = dict()
         for index, ID in enumerate(prefixID):
             ID.append(tokenizer.eos_token_id)
             for i in range(prefix_index, len(ID)):
@@ -559,7 +558,6 @@ class ReReTrainer(Trainer):
                     hash_number = self.get_hash(ID[prefix_index:i])
                 if hash_number not in self.hash_dict:
                     self.hash_dict[hash_number] = set()
-                    # sasrec_dict[hash_number] = set()
                 self.hash_dict[hash_number].add(ID[i])
 
         for key in self.hash_dict.keys():
@@ -758,7 +756,6 @@ class ReReTrainer(Trainer):
                 # guidance_scale=1.0,
                 # cf_logits=None,
                 prefix_allowed_tokens_fn=self.prefix_allowed_tokens_fn,
-                # cf_dict=sasrec_dict,
                 # unconditional_ids=None,
                 num_beams=self.num_generations if self.beam_search else 1,
                 base_model=self.base_model,

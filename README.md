@@ -384,7 +384,7 @@ get_res_batch("MiniMax-M2.7", prompt_list, max_tokens=512, api_info=api_info)
 | 7. 推荐强化学习（可选） | [scripts/](scripts/) → [minionerec/training/](minionerec/training/) → [minionerec/datasets/](minionerec/datasets/) | `scripts/rl.sh` → `training/rl.py` → `datasets/recommendation.py` 中的 RL 数据集 → `training/trainer.py::ReReTrainer` | SFT 模型怎样生成一组候选、获得奖励、计算组内优势，再通过策略损失与参考 KL 更新模型。重点读 `_prepare_inputs`、`_get_per_token_logps` 和 `compute_loss`。 |
 | 8. 推理与离线评测 | [minionerec/evaluation/](minionerec/evaluation/) | 先看 `scripts/evaluate.sh`，再依次读 `split.py` → `evaluate.py` → `logits_processor.py` → `merge.py` → `metrics.py` | 如何输入用户历史、逐 token 约束 SID 生成、得到候选推荐并计算 HR/NDCG。样本构造还需回看 `datasets/recommendation.py` 中的 `EvalSidDataset`。 |
 
-**第一遍可以暂缓阅读：** `minionerec/experiments/` 是 GPR、TS 等实验分支；`minionerec/models/` 主要是 SASRec 等传统推荐基线，并非主线 LLM 的实现，使用 SASRec 奖励时再深入。`tests/` 可用于对照输入输出，`config/` 可在阅读分布式启动参数时查阅。
+**第一遍可以暂缓阅读：** `minionerec/experiments/` 是 GPR、TS 等实验分支；传统推荐基线及其 SASRec 奖励分支已移除，主线使用外部因果语言模型。`tests/` 可用于对照输入输出，`config/` 可在阅读分布式启动参数时查阅。
 
 `data/` 和 `ts_rec_data/` 存放数据，可以打开少量样本对照代码，但它们不是训练逻辑目录。如果直接使用仓库已有 SID 与 CSV，可以从第 5 步开始；想理解完整训练流程，则从第 1 步顺读。
 
