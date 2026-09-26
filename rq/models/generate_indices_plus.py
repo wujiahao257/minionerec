@@ -8,8 +8,8 @@ import polars as pl
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-from datasets import EmbDataset
-from models.rqvae import RQVAE
+from rq.datasets import EmbDataset
+from rq.models.rqvae import RQVAE
 
 
 class ResidualEncoderWrapper(nn.Module):
@@ -68,16 +68,17 @@ def deal_with_deduplicate(df):
 
     return result_df
 
+"""
+构造带残差编码器的 RQVAE，并从 checkpoint 加载权重用于提取代码。
+
+Args:
+    args: argparse.Namespace，向量、checkpoint、模型维度与设备配置。
+    dim: int，商品连续向量的特征维度。
+
+Returns:
+    RQVAE，已置为 eval 模式的模型。
+"""
 def load_model(args, dim):
-    """构造带残差编码器的 RQVAE，并从 checkpoint 加载权重用于提取代码。
-
-    Args:
-        args (argparse.Namespace): 向量与 checkpoint 路径、模型维度、设备和 batch 配置。
-        dim (int): 商品连续向量的特征维度 D。
-
-    Returns:
-        RQVAE: 已置为 eval 模式的模型。
-    """
     print(f"Building model with e_dim={args.e_dim} (Must match input dim {dim})...")
     
     model = RQVAE(in_dim=dim,
@@ -106,7 +107,7 @@ def load_model(args, dim):
         raise FileNotFoundError(f"Checkpoint not found at {args.ckpt_path}")
     
     print(f"Loading checkpoint: {args.ckpt_path}")
-    checkpoint = torch.load(args.ckpt_path, map_location=args.device)
+    checkpoint = torch.load(args.ckpt_path, map_location=args.device, weights_only=False)
     
     if 'model_state_dict' in checkpoint:
         state_dict = checkpoint['model_state_dict']

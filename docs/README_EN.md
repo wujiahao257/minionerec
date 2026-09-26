@@ -89,19 +89,19 @@ Scaling Generative Recommendation**
 | `minionerec/experiments/gpr/amazon18.py`            |   GPR-inspired Amazon18 preprocessing: extracts heterogeneous features for unified input representation                         |
 | `scripts/amazon23_data_process.sh`                |    Shell script to filter and preprocess Amazon23 data into an RQ-ready format                                      |
 | `minionerec/preprocessing/amazon23.py`                |   Python implementation of the Amazon23 data preprocessing pipeline                                        |
-| `rq/text2emb/amazon_text2emb.sh`                |   Shell script to generate item embeddings (title + description) via emb_model for the Amazon dataset                                   |
+| `rq/scripts/amazon_text2emb.sh`                |   Shell script to generate item embeddings (title + description) via emb_model for the Amazon dataset                                   |
 | `rq/text2emb/amazon_text2emb.py`                |   Python implementation of the above embedding generation                                         |
 | `rq/text2emb/amazon_text2emb_gpr.py`           |   GPR-inspired text-to-embedding                                 |
-| `rq/generate_indices.py`                |   Generates the SID file after training an RQ-VAE model                                       |
-| `rq/rqvae.sh`                |   Shell script to train RQ-VAE on Amazon item embeddings                        |
+| `rq/models/generate_indices.py`                |   Generates the SID file after training an RQ-VAE model                                       |
+| `rq/scripts/rqvae.sh`                |   Shell script to train RQ-VAE on Amazon item embeddings                        |
 | `rq/rqvae.py`                |   Python implementation of RQ-VAE training                                            |
 | `rq/rqkmeans_faiss.py`                |   Python implementation of RQ-Kmeans training based on faiss                                          |
 | `rq/rqkmeans_constrained.py`                |   Python implementation of Constrained RQ-Kmeans                         |
-| `rq/rqkmeans_constrained.sh`                |   Shell script to train constrained RQ-Kmeans constrained on Amazon item embeddings                        |
+| `rq/scripts/rqkmeans_constrained.sh`                |   Shell script to train constrained RQ-Kmeans constrained on Amazon item embeddings                        |
 | `rq/rqkmeans_plus.py`                |   Python implementation of RQ-Kmeans+                        |
-| `rq/rqkmeans_plus.sh`                |   Shell script to train RQ-Kmeans+ constrained on Amazon item embeddings                        |
-| `rq/generate_indices_plus.py`                |   Generates the SID file after training an RQ-Kmeans+ model                                       |
-| `rq/generate_indices_plus.sh`                |   Shell script to generate the SID file after training an RQ-Kmeans+ model                                       |
+| `rq/scripts/rqkmeans_plus.sh`                |   Shell script to train RQ-Kmeans+ constrained on Amazon item embeddings                        |
+| `rq/models/generate_indices_plus.py`                |   Generates the SID file after training an RQ-Kmeans+ model                                       |
+| `rq/scripts/generate_indices_plus.sh`                |   Shell script to generate the SID file after training an RQ-Kmeans+ model                                       |
 | `requirements.txt`        | List of Python dependencies                                                                                |
 
 ---
@@ -221,22 +221,22 @@ For conflicting items, we add an extra layer to perform deduplication; meanwhile
 ```
 pip install k_means_constrained
 pip install polars
-(cd rq && bash rqkmeans_constrained.sh)
+bash rq/scripts/rqkmeans_constrained.sh
 ```
 
 - **3.1.4 Train RQ-Kmeans+ on the embeddings**
 ```
 pip install k_means_constrained
 pip install polars
-(cd rq && bash rqkmeans_constrained.sh)
-(cd rq && bash rqkmeans_plus.sh)
+bash rq/scripts/rqkmeans_constrained.sh
+bash rq/scripts/rqkmeans_plus.sh
 ```
 
 - **3.2 Generate indices(only RQ-VAE & RQ-Kmeans+ needed)**
 ```
-python rq/generate_indices.py
+python -m rq.models.generate_indices --ckpt_path /path/to/best_collision_model.pth
 # or
-(cd rq && bash generate_indices_plus.sh)
+bash rq/scripts/generate_indices_plus.sh /path/to/best_collision_model.pth
 ```
 
 - **3.3 Convert dataset format**

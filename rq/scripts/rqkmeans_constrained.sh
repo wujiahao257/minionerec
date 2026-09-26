@@ -3,6 +3,10 @@
 # RQ-KMeans Constrained Training Script
 #
 
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
 # Default parameters
 DATASET="Industrial_and_Scientific"
 ROOT="../data/Amazon18/$DATASET"
