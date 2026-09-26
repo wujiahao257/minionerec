@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 from .datasets import EmbDataset
-from .models.rqvae import RQVAE
+from .models.plus_model import RQKMeansPlusModel
 
 
 class ResidualEncoderWrapper(nn.Module):
@@ -69,19 +69,19 @@ def deal_with_deduplicate(df):
     return result_df
 
 """
-构造带残差编码器的 RQVAE，并从 checkpoint 加载权重用于提取代码。
+构造带残差编码器的 RQKMeansPlusModel，并从 checkpoint 加载权重用于提取代码。
 
 Args:
     args: argparse.Namespace，向量、checkpoint、模型维度与设备配置。
     dim: int，商品连续向量的特征维度。
 
 Returns:
-    RQVAE，已置为 eval 模式的模型。
+    RQKMeansPlusModel，已置为 eval 模式的模型。
 """
 def load_model(args, dim):
     print(f"Building model with e_dim={args.e_dim} (Must match input dim {dim})...")
     
-    model = RQVAE(in_dim=dim,
+    model = RQKMeansPlusModel(in_dim=dim,
                   num_emb_list=args.num_emb_list,
                   e_dim=args.e_dim,
                   layers=args.layers,

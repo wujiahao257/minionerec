@@ -9,7 +9,7 @@ class MLPLayers(nn.Module):
     """按维度列表构造带可选 Dropout、BatchNorm 和激活的多层感知机。
 
     Args:
-        layers (list[int] | None): MLP 的层宽列表；RQVAE 中只传中间层，MLPLayers 中包含首尾维度。
+        layers (list[int] | None): MLP 的层宽列表；RQKMeansPlusModel 中只传中间层，MLPLayers 中包含首尾维度。
         dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
         activation (str | type[torch.nn.Module] | None): 激活名称或模块类；none/None 表示不加激活，MLP 最后一层不加激活。
         bn (bool): 是否在 MLP 的非末层加入 BatchNorm1d。
@@ -21,7 +21,7 @@ class MLPLayers(nn.Module):
 
         Args:
             self (MLPLayers): 当前实例，由 Python 在调用实例方法时自动传入。
-            layers (list[int] | None): MLP 的层宽列表；RQVAE 中只传中间层，MLPLayers 中包含首尾维度。
+            layers (list[int] | None): MLP 的层宽列表；RQKMeansPlusModel 中只传中间层，MLPLayers 中包含首尾维度。
             dropout (float): Dropout 丢弃概率；训练时随机屏蔽部分表示，eval 模式禁用随机丢弃。
             activation (str | type[torch.nn.Module] | None): 激活名称或模块类；none/None 表示不加激活，MLP 最后一层不加激活。
             bn (bool): 是否在 MLP 的非末层加入 BatchNorm1d。

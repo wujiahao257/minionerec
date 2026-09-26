@@ -17,7 +17,7 @@ class Trainer(object):
 
     Args:
         args (argparse.Namespace): 学习率、优化器、轮数、设备、调度器和 checkpoint 配置。
-        model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+        model (RQKMeansPlusModel): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
         data_num (int): 每个 epoch 的 DataLoader batch 数，用来换算预热和总调度步数。
     """
     def __init__(self, args, model, data_num):
@@ -26,7 +26,7 @@ class Trainer(object):
         Args:
             self (Trainer): 当前实例，由 Python 在调用实例方法时自动传入。
             args (argparse.Namespace): 学习率、优化器、轮数、设备、调度器和 checkpoint 配置。
-            model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+            model (RQKMeansPlusModel): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
             data_num (int): 每个 epoch 的 DataLoader batch 数，用来换算预热和总调度步数。
 
         Returns:

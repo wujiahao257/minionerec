@@ -8,7 +8,7 @@ import logging
 from torch.utils.data import DataLoader
 
 from .datasets import EmbDataset
-from .models.rqvae import RQVAE
+from .models.plus_model import RQKMeansPlusModel
 from .trainer import Trainer
 
 
@@ -48,12 +48,12 @@ def apply_rqkmeans_plus_strategy(model, codebook_path, device):
     """为 encoder 加残差、将末层 Linear 零初始化，并载入约束聚类码本。
 
     Args:
-        model (RQVAE): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
+        model (RQKMeansPlusModel): 待训练或修改的量化自编码器，包含 encoder、rq 和 decoder。
         codebook_path (str): 包含 codebook_0、codebook_1 等数组的预训练码本 NPZ 路径。
         device (str | torch.device | None): 张量或模型的目标设备，例如 cuda:0 或 cpu；某些辅助类仅保存此值。
 
     Returns:
-        RQVAE: 原地修改后的模型，初始 encoder 映射为恒等映射。
+        RQKMeansPlusModel: 原地修改后的模型，初始 encoder 映射为恒等映射。
     """
     logging.info(">>> [RQ-Kmeans+] Strategy: Applying Residual Connection & Warm-start...")
 
@@ -187,7 +187,7 @@ if __name__ == '__main__':
         logging.error("Please set --e_dim 2560 (or your data dim).")
         exit(1)
 
-    model = RQVAE(in_dim=data.dim,
+    model = RQKMeansPlusModel(in_dim=data.dim,
                   num_emb_list=args.num_emb_list,
                   e_dim=args.e_dim,
                   layers=args.layers, 
