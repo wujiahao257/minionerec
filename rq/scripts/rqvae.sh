@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-python rqvae.py \
+python -m vae.rqvae \
       --data_path ../data/Amazon/index/Industrial_and_Scientific.emb-qwen-td.npy \
       --ckpt_dir ./output/Industrial_and_Scientific \
       --lr 1e-3 \

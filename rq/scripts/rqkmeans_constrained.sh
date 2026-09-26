@@ -31,7 +31,7 @@ done
 echo "Dataset: $DATASET"
 echo "K=$K, L=$L"
 
-python rqkmeans_constrained.py \
+python kmeans/rqkmeans_constrained.py \
     --dataset "$DATASET" \
     --root "$ROOT" \
     --k "$K" \

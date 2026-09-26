@@ -92,15 +92,15 @@ Scaling Generative Recommendation**
 | `rq/scripts/amazon_text2emb.sh`                |   Shell script to generate item embeddings (title + description) via emb_model for the Amazon dataset                                   |
 | `rq/text2emb/amazon_text2emb.py`                |   Python implementation of the above embedding generation                                         |
 | `rq/text2emb/amazon_text2emb_gpr.py`           |   GPR-inspired text-to-embedding                                 |
-| `rq/models/generate_indices.py`                |   Generates the SID file after training an RQ-VAE model                                       |
+| `rq/vae/generate_indices.py`                |   Generates the SID file after training an RQ-VAE model                                       |
 | `rq/scripts/rqvae.sh`                |   Shell script to train RQ-VAE on Amazon item embeddings                        |
-| `rq/rqvae.py`                |   Python implementation of RQ-VAE training                                            |
-| `rq/rqkmeans_faiss.py`                |   Python implementation of RQ-Kmeans training based on faiss                                          |
-| `rq/rqkmeans_constrained.py`                |   Python implementation of Constrained RQ-Kmeans                         |
+| `rq/vae/rqvae.py`                |   Python implementation of RQ-VAE training                                            |
+| `rq/kmeans/rqkmeans_faiss.py`                |   Python implementation of RQ-Kmeans training based on faiss                                          |
+| `rq/kmeans/rqkmeans_constrained.py`                |   Python implementation of Constrained RQ-Kmeans                         |
 | `rq/scripts/rqkmeans_constrained.sh`                |   Shell script to train constrained RQ-Kmeans constrained on Amazon item embeddings                        |
-| `rq/rqkmeans_plus.py`                |   Python implementation of RQ-Kmeans+                        |
+| `rq/kmeans/rqkmeans_plus.py`                |   Python implementation of RQ-Kmeans+                        |
 | `rq/scripts/rqkmeans_plus.sh`                |   Shell script to train RQ-Kmeans+ constrained on Amazon item embeddings                        |
-| `rq/models/generate_indices_plus.py`                |   Generates the SID file after training an RQ-Kmeans+ model                                       |
+| `rq/kmeans/generate_indices_plus.py`                |   Generates the SID file after training an RQ-Kmeans+ model                                       |
 | `rq/scripts/generate_indices_plus.sh`                |   Shell script to generate the SID file after training an RQ-Kmeans+ model                                       |
 | `requirements.txt`        | List of Python dependencies                                                                                |
 
@@ -201,7 +201,7 @@ Choose either 3.1.1, 3.1.2, 3.1.3 or 3.1.4.
 
 - **3.1.1 Train RQ-VAE on the embeddings**
 ```
-python rq/rqvae.py \
+python -m rq.vae.rqvae \
       --data_path xxx/data/Industrial_and_Scientific/Industrial_and_Scientific.emb-qwen-td.npy \
       --ckpt_dir ./output/Industrial_and_Scientific \
       --lr 1e-3 \
@@ -213,7 +213,7 @@ python rq/rqvae.py \
 
 ```
 conda install faiss-gpu
-python rq/rqkmeans_faiss.py --dataset Industrial_and_Scientific # The RQ-Kmeans method based on semantic embeddings has a relatively high collision rate.
+python rq/kmeans/rqkmeans_faiss.py --dataset Industrial_and_Scientific # The RQ-Kmeans method based on semantic embeddings has a relatively high collision rate.
 ```
 
 - **3.1.3 Train constrained RQ-Kmeans on the embeddings**
@@ -234,7 +234,7 @@ bash rq/scripts/rqkmeans_plus.sh
 
 - **3.2 Generate indices(only RQ-VAE & RQ-Kmeans+ needed)**
 ```
-python -m rq.models.generate_indices --ckpt_path /path/to/best_collision_model.pth
+python -m rq.vae.generate_indices --ckpt_path /path/to/best_collision_model.pth
 # or
 bash rq/scripts/generate_indices_plus.sh /path/to/best_collision_model.pth
 ```

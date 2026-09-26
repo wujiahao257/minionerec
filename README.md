@@ -92,17 +92,19 @@
 | `rq/scripts/amazon_text2emb.sh`                | 通过文本编码模型为 Amazon 商品标题与描述生成向量的启动脚本 |
 | `rq/text2emb/amazon_text2emb.py`                | 商品文本向量生成实现 |
 | `rq/text2emb/amazon_text2emb_gpr.py`           | GPR 实验分支的商品文本向量生成实现 |
-| `rq/models/generate_indices.py`                | 训练 RQ-VAE 后导出商品 SID 索引 |
+| `rq/vae/generate_indices.py`                | 训练 RQ-VAE 后导出商品 SID 索引 |
 | `rq/scripts/rqvae.sh`                | 使用 Amazon 商品向量训练 RQ-VAE 的启动脚本 |
-| `rq/rqvae.py`                | RQ-VAE 训练入口 |
-| `rq/rqkmeans_faiss.py`                | 基于 FAISS 的 RQ-Kmeans 实现 |
-| `rq/rqkmeans_constrained.py`                | 带聚类容量约束的 RQ-Kmeans 实现 |
+| `rq/vae/rqvae.py`                | RQ-VAE 训练入口 |
+| `rq/kmeans/rqkmeans_faiss.py`                | 基于 FAISS 的 RQ-Kmeans 实现 |
+| `rq/kmeans/rqkmeans_constrained.py`                | 带聚类容量约束的 RQ-Kmeans 实现 |
 | `rq/scripts/rqkmeans_constrained.sh`                | 使用 Amazon 商品向量训练带约束 RQ-Kmeans 的启动脚本 |
-| `rq/rqkmeans_plus.py`                | RQ-Kmeans+ 训练实现 |
+| `rq/kmeans/rqkmeans_plus.py`                | RQ-Kmeans+ 训练实现 |
 | `rq/scripts/rqkmeans_plus.sh`                | 使用 Amazon 商品向量训练 RQ-Kmeans+ 的启动脚本 |
-| `rq/models/generate_indices_plus.py`                | 训练 RQ-Kmeans+ 后导出商品 SID 索引 |
+| `rq/kmeans/generate_indices_plus.py`                | 训练 RQ-Kmeans+ 后导出商品 SID 索引 |
 | `rq/scripts/generate_indices_plus.sh`                | RQ-Kmeans+ 的 SID 索引导出启动脚本 |
 | `requirements.txt`        | Python 依赖列表 |
+
+`rq/vae/` 与 `rq/kmeans/` 分别保存各自的模型、数据读取、训练器和导出入口，两者没有互相导入。RQ-Kmeans+ 仍采用带编码器与解码器的量化网络，但其实现保存在 `rq/kmeans/` 内独立维护。
 
 ---
 
@@ -201,7 +203,7 @@ accelerate launch --num_processes 8 rq/text2emb/amazon_text2emb.py \
 
 - **3.1.1 使用商品向量训练 RQ-VAE**
 ```
-python rq/rqvae.py \
+python -m rq.vae.rqvae \
       --data_path xxx/data/Industrial_and_Scientific/Industrial_and_Scientific.emb-qwen-td.npy \
       --ckpt_dir ./output/Industrial_and_Scientific \
       --lr 1e-3 \
@@ -213,7 +215,7 @@ python rq/rqvae.py \
 
 ```
 conda install faiss-gpu
-python rq/rqkmeans_faiss.py --dataset Industrial_and_Scientific # 基于语义向量的 RQ-Kmeans 方法碰撞率相对较高。
+python rq/kmeans/rqkmeans_faiss.py --dataset Industrial_and_Scientific # 基于语义向量的 RQ-Kmeans 方法碰撞率相对较高。
 ```
 
 - **3.1.3 使用商品向量训练带约束的 RQ-Kmeans**
@@ -234,7 +236,7 @@ bash rq/scripts/rqkmeans_plus.sh
 
 - **3.2 生成索引（仅 RQ-VAE 和 RQ-Kmeans+ 需要）**
 ```
-python -m rq.models.generate_indices --ckpt_path /path/to/best_collision_model.pth
+python -m rq.vae.generate_indices --ckpt_path /path/to/best_collision_model.pth
 # 或者
 bash rq/scripts/generate_indices_plus.sh /path/to/best_collision_model.pth
 ```
@@ -377,8 +379,8 @@ get_res_batch("MiniMax-M2.7", prompt_list, max_tokens=512, api_info=api_info)
 | --- | --- | --- | --- |
 | 1. 原始数据预处理 | [minionerec/preprocessing/](minionerec/preprocessing/) | `amazon18.py`；使用 Amazon23 时改读 `amazon23.py` | 如何过滤用户和商品、按时间排列行为、构造历史与下一商品样本，以及划分训练、验证、测试集。产物包括交互 `.inter` 和商品元数据 `.item.json`。 |
 | 2. 商品文本转向量 | [rq/text2emb/](rq/text2emb/) | `amazon_text2emb.py` → `utils.py` 中的文本清洗函数 | 商品标题和描述怎样变成文本编码器输入，再经隐藏状态池化得到商品向量 `.npy`。这里提取向量，不训练推荐 LLM。 |
-| 3. 训练 SID 量化模型 | [rq/](rq/) → [rq/models/](rq/models/) | `rqvae.py` → `datasets.py` → `trainer.py` → `models/rqvae.py` → `models/rq.py` → `models/vq.py`；MLP 细节看 `models/layers.py` | 商品向量如何经过 Dataset/DataLoader、编码器、残差量化和解码器；重建损失与量化损失如何驱动训练，并保存 checkpoint。 |
-| 4. 导出 SID 并转换数据 | [rq/models/](rq/models/) → [minionerec/preprocessing/](minionerec/preprocessing/) | `rq/models/generate_indices.py` → `minionerec/preprocessing/convert_dataset.py` | 如何从量化 checkpoint 导出商品 SID 索引，再将索引、商品元数据和交互关联，得到推荐训练用的 CSV 与商品目录。运行导出脚本时需传入 checkpoint 路径。 |
+| 3. 训练 SID 量化模型 | [rq/vae/](rq/vae/) → [rq/vae/models/](rq/vae/models/) | `rqvae.py` → `datasets.py` → `trainer.py` → `models/rqvae.py` → `models/rq.py` → `models/vq.py`；MLP 细节看 `models/layers.py` | 商品向量如何经过 Dataset/DataLoader、编码器、残差量化和解码器；重建损失与量化损失如何驱动训练，并保存 checkpoint。 |
+| 4. 导出 SID 并转换数据 | [rq/vae/](rq/vae/) → [minionerec/preprocessing/](minionerec/preprocessing/) | `rq/vae/generate_indices.py` → `minionerec/preprocessing/convert_dataset.py` | 如何从量化 checkpoint 导出商品 SID 索引，再将索引、商品元数据和交互关联，得到推荐训练用的 CSV 与商品目录。运行导出脚本时需传入 checkpoint 路径。 |
 | 5. 准备 SFT 样本 | [scripts/](scripts/) → [minionerec/training/](minionerec/training/) → [minionerec/datasets/](minionerec/datasets/) | `scripts/sft.sh` → `training/sft.py::train` → `datasets/recommendation.py` 中的 `SidSFTDataset`、`SidItemFeatDataset`、`FusionSeqRecDataset` | 先看入口如何加载模型、扩充 SID 词表和构造数据集，再追踪历史行为如何变成 prompt、目标商品如何变成 label，以及为什么用 `-100` 屏蔽 prompt 的监督。 |
 | 6. 执行 SFT 训练 | [minionerec/training/](minionerec/training/) | 回到 `sft.py`，继续看数据整理器、`TrainingArguments`、`Trainer` 和 `trainer.train()` | 样本怎样组成 batch，模型怎样预测下一个 token、计算 loss 并更新参数。主线 CausalLM 的 Transformer、forward 和语言模型 loss 来自外部 Transformers 模型实现，不在本仓库重新定义。 |
 | 7. 推荐强化学习（可选） | [scripts/](scripts/) → [minionerec/training/](minionerec/training/) → [minionerec/datasets/](minionerec/datasets/) | `scripts/rl.sh` → `training/rl.py` → `datasets/recommendation.py` 中的 RL 数据集 → `training/trainer.py::ReReTrainer` | SFT 模型怎样生成一组候选、获得奖励、计算组内优势，再通过策略损失与参考 KL 更新模型。重点读 `_prepare_inputs`、`_get_per_token_logps` 和 `compute_loss`。 |
